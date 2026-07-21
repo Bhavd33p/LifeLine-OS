@@ -1,10 +1,21 @@
 # Personal OS
 
-A local-first phone app that tracks everything in one place: tasks, habits,
-finances, health, and your calendar. Everything lives on-device — there is
-no backend, no account, and no network calls.
+A local-first personal tracker. This repo has two implementations:
 
-## Features
+- **`lib/` — Flutter app.** Fixed tabs (Home, Tasks & Habits, Timetable,
+  Finance, Health, Calendar). Requires the Flutter SDK to build; see
+  below.
+- **`web/` — Browser app.** A flexible **workspaces** model instead of
+  fixed tabs (Timetable, Tasks, Health, CP/DSA, Skincare, Gym, plus any you
+  add), tasks with labels (Important/Today/Tomorrow/Office/Personal), and
+  a timetable that can pull tasks in by label and hold per-block subtasks.
+  No build step, installable to a phone home screen (including iOS via
+  Safari's Add to Home Screen — see `web/README.md`).
+
+The sections below describe the Flutter app; see `web/README.md` for the
+web app.
+
+## Features (Flutter app)
 
 - **Home dashboard** — today's tasks, habit check-offs, today's schedule,
   this month's money snapshot, today's health check-in, and a nudge if

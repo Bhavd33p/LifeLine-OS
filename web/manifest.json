@@ -1,0 +1,14 @@
+{
+  "name": "Personal OS",
+  "short_name": "Personal OS",
+  "description": "A local-first personal operating system: workspaces, labeled tasks, and a linked timetable.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F7F5FA",
+  "theme_color": "#6750A4",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
