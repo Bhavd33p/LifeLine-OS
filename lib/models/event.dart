@@ -1,3 +1,5 @@
+import 'work_category.dart';
+
 class CalendarEvent {
   final String id;
   final String title;
@@ -5,6 +7,7 @@ class CalendarEvent {
   final int? hour;
   final int? minute;
   final String? notes;
+  final WorkCategory category;
 
   const CalendarEvent({
     required this.id,
@@ -13,6 +16,7 @@ class CalendarEvent {
     this.hour,
     this.minute,
     this.notes,
+    this.category = WorkCategory.other,
   });
 
   bool get hasTime => hour != null;
@@ -24,6 +28,7 @@ class CalendarEvent {
         'hour': hour,
         'minute': minute,
         'notes': notes,
+        'category': category.name,
       };
 
   factory CalendarEvent.fromMap(Map<dynamic, dynamic> map) => CalendarEvent(
@@ -33,5 +38,6 @@ class CalendarEvent {
         hour: map['hour'] as int?,
         minute: map['minute'] as int?,
         notes: map['notes'] as String?,
+        category: workCategoryFromName(map['category'] as String?),
       );
 }

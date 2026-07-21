@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/task.dart';
+import '../../models/work_category.dart';
 import '../../providers/tasks_provider.dart';
 import '../../widgets/app_text_field.dart';
+import '../../widgets/work_category_selector.dart';
 
 class TaskFormSheet extends ConsumerStatefulWidget {
   const TaskFormSheet({super.key});
@@ -19,6 +21,7 @@ class _TaskFormSheetState extends ConsumerState<TaskFormSheet> {
   final _notesController = TextEditingController();
   DateTime? _dueDate;
   TaskPriority _priority = TaskPriority.medium;
+  WorkCategory _category = WorkCategory.other;
 
   @override
   void dispose() {
@@ -44,6 +47,7 @@ class _TaskFormSheetState extends ConsumerState<TaskFormSheet> {
           notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
           dueDate: _dueDate,
           priority: _priority,
+          category: _category,
         );
     Navigator.of(context).pop();
   }
@@ -92,6 +96,8 @@ class _TaskFormSheetState extends ConsumerState<TaskFormSheet> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            WorkCategorySelector(value: _category, onChanged: (c) => setState(() => _category = c)),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,

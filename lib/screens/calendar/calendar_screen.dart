@@ -7,6 +7,7 @@ import '../../providers/calendar_provider.dart';
 import '../../utils/date_utils.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/section_card.dart';
+import '../../widgets/work_category_selector.dart';
 import 'event_form_sheet.dart';
 
 class CalendarScreen extends ConsumerStatefulWidget {
@@ -165,7 +166,18 @@ class _EventRow extends ConsumerWidget {
       contentPadding: EdgeInsets.zero,
       leading: const Icon(Icons.event_note),
       title: Text(event.title),
-      subtitle: Text(event.notes != null ? '$timeLabel · ${event.notes}' : timeLabel),
+      subtitle: Row(
+        children: [
+          WorkCategoryBadge(category: event.category),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              event.notes != null ? '$timeLabel · ${event.notes}' : timeLabel,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
       trailing: IconButton(
         icon: const Icon(Icons.close, size: 18),
         onPressed: () => ref.read(eventsProvider.notifier).deleteEvent(event.id),

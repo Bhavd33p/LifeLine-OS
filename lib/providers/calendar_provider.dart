@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/event.dart';
+import '../models/work_category.dart';
 import '../services/storage_service.dart';
 import '../utils/date_utils.dart';
 import 'tasks_provider.dart';
@@ -23,6 +24,7 @@ class EventsNotifier extends StateNotifier<List<CalendarEvent>> {
     int? hour,
     int? minute,
     String? notes,
+    WorkCategory category = WorkCategory.other,
   }) async {
     final event = CalendarEvent(
       id: _uuid.v4(),
@@ -31,6 +33,7 @@ class EventsNotifier extends StateNotifier<List<CalendarEvent>> {
       hour: hour,
       minute: minute,
       notes: notes,
+      category: category,
     );
     await StorageService.eventsBox.put(event.id, event.toMap());
     state = _loadAll();

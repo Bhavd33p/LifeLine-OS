@@ -12,6 +12,9 @@ class StorageService {
   static const String transactionsBoxName = 'transactions';
   static const String healthBoxName = 'health_entries';
   static const String eventsBoxName = 'events';
+  static const String timetableBoxName = 'timetable_blocks';
+  static const String templateBoxName = 'timetable_template';
+  static const String settingsBoxName = 'settings';
 
   static Future<void> init() async {
     await Hive.initFlutter();
@@ -22,6 +25,9 @@ class StorageService {
       Hive.openBox<Map>(transactionsBoxName),
       Hive.openBox<Map>(healthBoxName),
       Hive.openBox<Map>(eventsBoxName),
+      Hive.openBox<Map>(timetableBoxName),
+      Hive.openBox<Map>(templateBoxName),
+      Hive.openBox(settingsBoxName),
     ]);
   }
 
@@ -31,4 +37,7 @@ class StorageService {
   static Box<Map> get transactionsBox => Hive.box<Map>(transactionsBoxName);
   static Box<Map> get healthBox => Hive.box<Map>(healthBoxName);
   static Box<Map> get eventsBox => Hive.box<Map>(eventsBoxName);
+  static Box<Map> get timetableBox => Hive.box<Map>(timetableBoxName);
+  static Box<Map> get templateBox => Hive.box<Map>(templateBoxName);
+  static Box get settingsBox => Hive.box(settingsBoxName);
 }

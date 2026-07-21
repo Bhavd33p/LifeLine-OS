@@ -1,3 +1,5 @@
+import 'work_category.dart';
+
 enum TaskPriority { low, medium, high }
 
 TaskPriority taskPriorityFromName(String? name) => TaskPriority.values.firstWhere(
@@ -11,6 +13,7 @@ class TaskItem {
   final String? notes;
   final DateTime? dueDate;
   final TaskPriority priority;
+  final WorkCategory category;
   final bool isDone;
   final DateTime createdAt;
 
@@ -20,6 +23,7 @@ class TaskItem {
     this.notes,
     this.dueDate,
     this.priority = TaskPriority.medium,
+    this.category = WorkCategory.other,
     this.isDone = false,
     required this.createdAt,
   });
@@ -30,6 +34,7 @@ class TaskItem {
     DateTime? dueDate,
     bool clearDueDate = false,
     TaskPriority? priority,
+    WorkCategory? category,
     bool? isDone,
   }) {
     return TaskItem(
@@ -38,6 +43,7 @@ class TaskItem {
       notes: notes ?? this.notes,
       dueDate: clearDueDate ? null : (dueDate ?? this.dueDate),
       priority: priority ?? this.priority,
+      category: category ?? this.category,
       isDone: isDone ?? this.isDone,
       createdAt: createdAt,
     );
@@ -49,6 +55,7 @@ class TaskItem {
         'notes': notes,
         'dueDate': dueDate?.toIso8601String(),
         'priority': priority.name,
+        'category': category.name,
         'isDone': isDone,
         'createdAt': createdAt.toIso8601String(),
       };
@@ -60,6 +67,7 @@ class TaskItem {
         dueDate:
             map['dueDate'] != null ? DateTime.parse(map['dueDate'] as String) : null,
         priority: taskPriorityFromName(map['priority'] as String?),
+        category: workCategoryFromName(map['category'] as String?),
         isDone: map['isDone'] as bool? ?? false,
         createdAt: DateTime.parse(map['createdAt'] as String),
       );

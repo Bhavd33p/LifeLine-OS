@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/task.dart';
+import '../models/work_category.dart';
 import '../services/storage_service.dart';
 import '../utils/date_utils.dart';
 
@@ -29,6 +30,7 @@ class TasksNotifier extends StateNotifier<List<TaskItem>> {
     String? notes,
     DateTime? dueDate,
     TaskPriority priority = TaskPriority.medium,
+    WorkCategory category = WorkCategory.other,
   }) async {
     final task = TaskItem(
       id: _uuid.v4(),
@@ -36,6 +38,7 @@ class TasksNotifier extends StateNotifier<List<TaskItem>> {
       notes: notes,
       dueDate: dueDate,
       priority: priority,
+      category: category,
       createdAt: DateTime.now(),
     );
     await StorageService.tasksBox.put(task.id, task.toMap());

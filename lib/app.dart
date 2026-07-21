@@ -5,6 +5,7 @@ import 'screens/finance/finance_screen.dart';
 import 'screens/health/health_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/tasks/tasks_habits_screen.dart';
+import 'screens/timetable/timetable_screen.dart';
 import 'theme.dart';
 
 class PersonalOsApp extends StatelessWidget {
@@ -34,6 +35,7 @@ class _RootShellState extends State<RootShell> {
   static final _tabs = <Widget>[
     const HomeScreen(),
     const TasksHabitsScreen(),
+    const TimetableScreen(),
     const FinanceScreen(),
     const HealthScreen(),
     const CalendarScreen(),
@@ -51,6 +53,7 @@ class _RootShellState extends State<RootShell> {
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
           NavigationDestination(icon: Icon(Icons.check_circle_outline), selectedIcon: Icon(Icons.check_circle), label: 'Tasks'),
+          NavigationDestination(icon: Icon(Icons.view_timeline_outlined), selectedIcon: Icon(Icons.view_timeline), label: 'Timetable'),
           NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), selectedIcon: Icon(Icons.account_balance_wallet), label: 'Finance'),
           NavigationDestination(icon: Icon(Icons.favorite_outline), selectedIcon: Icon(Icons.favorite), label: 'Health'),
           NavigationDestination(icon: Icon(Icons.calendar_month_outlined), selectedIcon: Icon(Icons.calendar_month), label: 'Calendar'),

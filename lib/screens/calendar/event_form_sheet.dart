@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../models/work_category.dart';
 import '../../providers/calendar_provider.dart';
 import '../../widgets/app_text_field.dart';
+import '../../widgets/work_category_selector.dart';
 
 class EventFormSheet extends ConsumerStatefulWidget {
   final DateTime initialDate;
@@ -20,6 +22,7 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
   final _notesController = TextEditingController();
   late DateTime _date;
   TimeOfDay? _time;
+  WorkCategory _category = WorkCategory.other;
 
   @override
   void initState() {
@@ -57,6 +60,7 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
           hour: _time?.hour,
           minute: _time?.minute,
           notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+          category: _category,
         );
     Navigator.of(context).pop();
   }
@@ -105,6 +109,8 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
             ),
             const SizedBox(height: 12),
             AppTextField(controller: _notesController, label: 'Notes (optional)', maxLines: 2),
+            const SizedBox(height: 12),
+            WorkCategorySelector(value: _category, onChanged: (c) => setState(() => _category = c)),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,

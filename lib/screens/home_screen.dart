@@ -7,6 +7,7 @@ import '../providers/finance_provider.dart';
 import '../providers/habits_provider.dart';
 import '../providers/health_provider.dart';
 import '../providers/tasks_provider.dart';
+import '../providers/timetable_provider.dart';
 import '../utils/date_utils.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/section_card.dart';
@@ -24,6 +25,8 @@ class HomeScreen extends ConsumerWidget {
     final agenda = ref.watch(agendaForDayProvider(today));
     final summary = ref.watch(monthlySummaryProvider);
     final todayHealth = ref.watch(todayHealthEntryProvider);
+    final tomorrow = today.add(const Duration(days: 1));
+    final tomorrowPlanned = ref.watch(dayIsPlannedProvider(tomorrow));
 
     return Scaffold(
       appBar: AppBar(
@@ -34,6 +37,28 @@ class HomeScreen extends ConsumerWidget {
         children: [
           Text('Good day 👋', style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 16),
+          if (!tomorrowPlanned)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.view_timeline_outlined, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      "Tomorrow's timetable isn't planned yet — head to the Timetable tab.",
+                      style: TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           SectionCard(
             title: 'Due today',
             child: dueTasks.isEmpty

@@ -7,6 +7,7 @@ import '../../models/task.dart';
 import '../../providers/habits_provider.dart';
 import '../../providers/tasks_provider.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/work_category_selector.dart';
 import 'habit_form_sheet.dart';
 import 'task_form_sheet.dart';
 
@@ -133,9 +134,16 @@ class _TaskTile extends ConsumerWidget {
             task.title,
             style: TextStyle(decoration: task.isDone ? TextDecoration.lineThrough : null),
           ),
-          subtitle: task.dueDate != null
-              ? Text('Due ${DateFormat.yMMMd().format(task.dueDate!)}')
-              : (task.notes != null ? Text(task.notes!) : null),
+          subtitle: Row(
+            children: [
+              WorkCategoryBadge(category: task.category),
+              const SizedBox(width: 6),
+              if (task.dueDate != null)
+                Flexible(child: Text('Due ${DateFormat.yMMMd().format(task.dueDate!)}', overflow: TextOverflow.ellipsis))
+              else if (task.notes != null)
+                Flexible(child: Text(task.notes!, overflow: TextOverflow.ellipsis)),
+            ],
+          ),
           trailing: Container(
             width: 10,
             height: 10,
