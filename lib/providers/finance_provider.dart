@@ -39,6 +39,8 @@ class TransactionsNotifier extends StateNotifier<List<MoneyTransaction>> {
     await StorageService.transactionsBox.delete(id);
     state = _loadAll();
   }
+
+  void reload() => state = _loadAll();
 }
 
 final transactionsProvider =

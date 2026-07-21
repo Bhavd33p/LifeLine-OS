@@ -33,6 +33,11 @@ class HabitsNotifier extends StateNotifier<List<Habit>> {
     state = _loadAll();
   }
 
+  Future<void> updateHabit(Habit habit) async {
+    await StorageService.habitsBox.put(habit.id, habit.toMap());
+    state = _loadAll();
+  }
+
   Future<void> archiveHabit(String id) async {
     final map = StorageService.habitsBox.get(id);
     if (map == null) return;
@@ -52,6 +57,8 @@ class HabitsNotifier extends StateNotifier<List<Habit>> {
     await logsBox.deleteAll(staleKeys);
     state = _loadAll();
   }
+
+  void reload() => state = _loadAll();
 }
 
 final habitsProvider = StateNotifierProvider<HabitsNotifier, List<Habit>>(
@@ -76,6 +83,8 @@ class HabitLogsNotifier extends StateNotifier<List<HabitLog>> {
     }
     state = _loadAll();
   }
+
+  void reload() => state = _loadAll();
 }
 
 final habitLogsProvider = StateNotifierProvider<HabitLogsNotifier, List<HabitLog>>(

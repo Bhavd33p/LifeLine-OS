@@ -23,6 +23,13 @@ no backend, no account, and no network calls.
 - **Calendar** — a month view that merges your own events (also
   Office/Personal-tagged) with task due dates, so you can see everything
   scheduled on a given day.
+- **Editing** — tasks, habits, events, and timetable blocks can all be
+  tapped to edit in place, not just added/deleted.
+- **Settings** (gear icon on Home) — light/dark/system theme, a finance
+  currency symbol, the plan-tomorrow reminder controls, and data tools:
+  export a full JSON backup (via the share sheet), import/restore from a
+  backup file, and a clear-all-data wipe. All local — export just hands you
+  a file, nothing is uploaded anywhere.
 
 ## Architecture
 
@@ -40,16 +47,22 @@ no backend, no account, and no network calls.
   this size.
 - **Reminders**: [flutter_local_notifications](https://pub.dev/packages/flutter_local_notifications)
   + [timezone](https://pub.dev/packages/timezone) schedule a repeating
-  on-device notification at a time you set (`SettingsNotifier` persists it
-  in a small Hive `settings` box). Purely local — no push service, no
-  account.
+  on-device notification at a time you set. Purely local — no push
+  service, no account.
+- **Settings**: a single `AppSettings` (`SettingsNotifier`) persisted in a
+  small Hive `settings` box — theme mode, currency symbol, and reminder
+  enabled/hour/minute all live there.
+- **Backup**: `BackupService` serializes every Hive box to one JSON file
+  (`share_plus` hands it to the OS share sheet) and can restore/wipe from
+  the Settings screen; each domain's `StateNotifier` exposes a `reload()`
+  used after a restore so the UI picks up the new data immediately.
 
 ```
 lib/
   models/       # plain Dart data classes (toMap/fromMap, no codegen)
-  services/     # StorageService (Hive) + NotificationService
+  services/     # StorageService (Hive), NotificationService, BackupService
   providers/    # Riverpod StateNotifiers + derived providers per domain
-  screens/      # one folder per tab, plus shared home_screen.dart
+  screens/      # one folder per tab, plus shared home_screen.dart + settings/
   widgets/      # small shared UI pieces (SectionCard, StatTile, ...)
   utils/        # date helpers
 ```
@@ -85,5 +98,14 @@ iOS — the permission prompt is requested at startup.
 ## Notes on data & privacy
 
 All data is stored locally in Hive boxes under the app's documents
-directory. Nothing is synced or uploaded. Uninstalling the app deletes the
-data; there is currently no export/import or backup feature.
+directory. Nothing is synced or uploaded automatically — the only way data
+leaves the device is if you explicitly export a backup and choose to share
+it somewhere (email, Drive, Files, etc.) via Settings → Export backup.
+Uninstalling the app deletes the data, so exporting a backup periodically
+is the only safety net.
+
+## Known scope cuts
+
+- Transactions can be deleted and re-added, but not edited in place
+  (everything else — tasks, habits, events, timetable blocks — can be).
+- No onboarding flow or app icon yet.

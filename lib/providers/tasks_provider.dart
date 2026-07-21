@@ -62,6 +62,9 @@ class TasksNotifier extends StateNotifier<List<TaskItem>> {
     await StorageService.tasksBox.delete(id);
     state = _loadAll();
   }
+
+  /// Re-reads the box from disk — used after a backup restore or data wipe.
+  void reload() => state = _loadAll();
 }
 
 final tasksProvider = StateNotifierProvider<TasksNotifier, List<TaskItem>>(

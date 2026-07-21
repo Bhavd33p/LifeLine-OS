@@ -46,6 +46,8 @@ class HealthNotifier extends StateNotifier<List<HealthEntry>> {
     await StorageService.healthBox.delete(id);
     state = _loadAll();
   }
+
+  void reload() => state = _loadAll();
 }
 
 final healthEntriesProvider = StateNotifierProvider<HealthNotifier, List<HealthEntry>>(

@@ -164,6 +164,11 @@ class _EventRow extends ConsumerWidget {
         : 'All day';
     return ListTile(
       contentPadding: EdgeInsets.zero,
+      onTap: () => showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        builder: (_) => EventFormSheet(initialDate: event.date, existing: event),
+      ),
       leading: const Icon(Icons.event_note),
       title: Text(event.title),
       subtitle: Row(

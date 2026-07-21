@@ -160,44 +160,52 @@ class _BlockTile extends ConsumerWidget {
     final end = TimeOfDay(hour: block.endHour, minute: block.endMinute).format(context);
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 64,
-              child: Text(
-                '$start\n$end',
-                style: Theme.of(context).textTheme.bodySmall,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          builder: (_) => TimetableBlockFormSheet(date: block.date, existing: block),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 64,
+                child: Text(
+                  '$start\n$end',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(block.title, style: Theme.of(context).textTheme.bodyLarge),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      WorkCategoryBadge(category: block.category),
-                      if (block.notes != null) ...[
-                        const SizedBox(width: 6),
-                        Flexible(child: Text(block.notes!, overflow: TextOverflow.ellipsis)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(block.title, style: Theme.of(context).textTheme.bodyLarge),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        WorkCategoryBadge(category: block.category),
+                        if (block.notes != null) ...[
+                          const SizedBox(width: 6),
+                          Flexible(child: Text(block.notes!, overflow: TextOverflow.ellipsis)),
+                        ],
                       ],
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.close, size: 18),
-              onPressed: () => ref.read(timetableProvider.notifier).deleteBlock(block.id),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-          ],
+              IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: () => ref.read(timetableProvider.notifier).deleteBlock(block.id),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'providers/settings_provider.dart';
 import 'screens/calendar/calendar_screen.dart';
 import 'screens/finance/finance_screen.dart';
 import 'screens/health/health_screen.dart';
@@ -8,15 +10,18 @@ import 'screens/tasks/tasks_habits_screen.dart';
 import 'screens/timetable/timetable_screen.dart';
 import 'theme.dart';
 
-class PersonalOsApp extends StatelessWidget {
+class PersonalOsApp extends ConsumerWidget {
   const PersonalOsApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(settingsProvider).themeMode;
     return MaterialApp(
       title: 'Personal OS',
       debugShowCheckedModeBanner: false,
-      theme: appTheme,
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: themeMode,
       home: const RootShell(),
     );
   }

@@ -126,6 +126,11 @@ class _TaskTile extends ConsumerWidget {
       onDismissed: (_) => ref.read(tasksProvider.notifier).deleteTask(task.id),
       child: Card(
         child: ListTile(
+          onTap: () => showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            builder: (_) => TaskFormSheet(existing: task),
+          ),
           leading: Checkbox(
             value: task.isDone,
             onChanged: (_) => ref.read(tasksProvider.notifier).toggleDone(task.id),
@@ -197,6 +202,11 @@ class _HabitTile extends ConsumerWidget {
       onDismissed: (_) => ref.read(habitsProvider.notifier).deleteHabit(habit.id),
       child: Card(
         child: ListTile(
+          onTap: () => showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            builder: (_) => HabitFormSheet(existing: habit),
+          ),
           leading: IconButton(
             icon: Icon(
               doneToday ? Icons.check_circle : Icons.check_circle_outline,

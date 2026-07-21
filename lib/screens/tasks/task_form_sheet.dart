@@ -9,7 +9,9 @@ import '../../widgets/app_text_field.dart';
 import '../../widgets/work_category_selector.dart';
 
 class TaskFormSheet extends ConsumerStatefulWidget {
-  const TaskFormSheet({super.key});
+  final TaskItem? existing;
+
+  const TaskFormSheet({super.key, this.existing});
 
   @override
   ConsumerState<TaskFormSheet> createState() => _TaskFormSheetState();
@@ -17,11 +19,13 @@ class TaskFormSheet extends ConsumerStatefulWidget {
 
 class _TaskFormSheetState extends ConsumerState<TaskFormSheet> {
   final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
-  final _notesController = TextEditingController();
-  DateTime? _dueDate;
-  TaskPriority _priority = TaskPriority.medium;
-  WorkCategory _category = WorkCategory.other;
+  late final _titleController = TextEditingController(text: widget.existing?.title ?? '');
+  late final _notesController = TextEditingController(text: widget.existing?.notes ?? '');
+  late DateTime? _dueDate = widget.existing?.dueDate;
+  late TaskPriority _priority = widget.existing?.priority ?? TaskPriority.medium;
+  late WorkCategory _category = widget.existing?.category ?? WorkCategory.other;
+
+  bool get _isEditing => widget.existing != null;
 
   @override
   void dispose() {
@@ -42,13 +46,28 @@ class _TaskFormSheetState extends ConsumerState<TaskFormSheet> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    ref.read(tasksProvider.notifier).addTask(
-          title: _titleController.text.trim(),
-          notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
-          dueDate: _dueDate,
-          priority: _priority,
-          category: _category,
-        );
+    final title = _titleController.text.trim();
+    final notes = _notesController.text.trim().isEmpty ? null : _notesController.text.trim();
+    if (_isEditing) {
+      ref.read(tasksProvider.notifier).updateTask(
+            widget.existing!.copyWith(
+              title: title,
+              notes: notes,
+              dueDate: _dueDate,
+              clearDueDate: _dueDate == null,
+              priority: _priority,
+              category: _category,
+            ),
+          );
+    } else {
+      ref.read(tasksProvider.notifier).addTask(
+            title: title,
+            notes: notes,
+            dueDate: _dueDate,
+            priority: _priority,
+            category: _category,
+          );
+    }
     Navigator.of(context).pop();
   }
 
@@ -67,7 +86,7 @@ class _TaskFormSheetState extends ConsumerState<TaskFormSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('New task', style: Theme.of(context).textTheme.titleLarge),
+            Text(_isEditing ? 'Edit task' : 'New task', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
             AppTextField(
               controller: _titleController,
@@ -101,7 +120,7 @@ class _TaskFormSheetState extends ConsumerState<TaskFormSheet> {
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
-              child: FilledButton(onPressed: _submit, child: const Text('Add task')),
+              child: FilledButton(onPressed: _submit, child: Text(_isEditing ? 'Save changes' : 'Add task')),
             ),
           ],
         ),

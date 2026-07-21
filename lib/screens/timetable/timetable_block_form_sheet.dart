@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/timetable_block.dart';
 import '../../models/work_category.dart';
 import '../../providers/timetable_provider.dart';
 import '../../widgets/app_text_field.dart';
@@ -8,8 +9,9 @@ import '../../widgets/work_category_selector.dart';
 
 class TimetableBlockFormSheet extends ConsumerStatefulWidget {
   final DateTime date;
+  final TimetableBlock? existing;
 
-  const TimetableBlockFormSheet({super.key, required this.date});
+  const TimetableBlockFormSheet({super.key, required this.date, this.existing});
 
   @override
   ConsumerState<TimetableBlockFormSheet> createState() => _TimetableBlockFormSheetState();
@@ -17,12 +19,18 @@ class TimetableBlockFormSheet extends ConsumerStatefulWidget {
 
 class _TimetableBlockFormSheetState extends ConsumerState<TimetableBlockFormSheet> {
   final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
-  final _notesController = TextEditingController();
-  TimeOfDay _start = const TimeOfDay(hour: 9, minute: 0);
-  TimeOfDay _end = const TimeOfDay(hour: 10, minute: 0);
-  WorkCategory _category = WorkCategory.other;
+  late final _titleController = TextEditingController(text: widget.existing?.title ?? '');
+  late final _notesController = TextEditingController(text: widget.existing?.notes ?? '');
+  late TimeOfDay _start = widget.existing != null
+      ? TimeOfDay(hour: widget.existing!.startHour, minute: widget.existing!.startMinute)
+      : const TimeOfDay(hour: 9, minute: 0);
+  late TimeOfDay _end = widget.existing != null
+      ? TimeOfDay(hour: widget.existing!.endHour, minute: widget.existing!.endMinute)
+      : const TimeOfDay(hour: 10, minute: 0);
+  late WorkCategory _category = widget.existing?.category ?? WorkCategory.other;
   String? _timeError;
+
+  bool get _isEditing => widget.existing != null;
 
   @override
   void dispose() {
@@ -51,16 +59,34 @@ class _TimetableBlockFormSheetState extends ConsumerState<TimetableBlockFormShee
     }
     setState(() => _timeError = null);
 
-    ref.read(timetableProvider.notifier).addBlock(
-          date: widget.date,
-          title: _titleController.text.trim(),
-          startHour: _start.hour,
-          startMinute: _start.minute,
-          endHour: _end.hour,
-          endMinute: _end.minute,
-          category: _category,
-          notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
-        );
+    final title = _titleController.text.trim();
+    final notes = _notesController.text.trim().isEmpty ? null : _notesController.text.trim();
+    if (_isEditing) {
+      ref.read(timetableProvider.notifier).updateBlock(
+            TimetableBlock(
+              id: widget.existing!.id,
+              date: widget.date,
+              title: title,
+              startHour: _start.hour,
+              startMinute: _start.minute,
+              endHour: _end.hour,
+              endMinute: _end.minute,
+              category: _category,
+              notes: notes,
+            ),
+          );
+    } else {
+      ref.read(timetableProvider.notifier).addBlock(
+            date: widget.date,
+            title: title,
+            startHour: _start.hour,
+            startMinute: _start.minute,
+            endHour: _end.hour,
+            endMinute: _end.minute,
+            category: _category,
+            notes: notes,
+          );
+    }
     Navigator.of(context).pop();
   }
 
@@ -79,7 +105,7 @@ class _TimetableBlockFormSheetState extends ConsumerState<TimetableBlockFormShee
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('New time block', style: Theme.of(context).textTheme.titleLarge),
+            Text(_isEditing ? 'Edit time block' : 'New time block', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
             AppTextField(
               controller: _titleController,
@@ -118,7 +144,7 @@ class _TimetableBlockFormSheetState extends ConsumerState<TimetableBlockFormShee
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
-              child: FilledButton(onPressed: _submit, child: const Text('Add block')),
+              child: FilledButton(onPressed: _submit, child: Text(_isEditing ? 'Save changes' : 'Add block')),
             ),
           ],
         ),

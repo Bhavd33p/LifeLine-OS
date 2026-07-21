@@ -47,6 +47,11 @@ class TimetableNotifier extends StateNotifier<List<TimetableBlock>> {
     state = _loadAll();
   }
 
+  Future<void> updateBlock(TimetableBlock block) async {
+    await StorageService.timetableBox.put(block.id, block.toMap());
+    state = _loadAll();
+  }
+
   Future<void> deleteBlock(String id) async {
     await StorageService.timetableBox.delete(id);
     state = _loadAll();
@@ -85,6 +90,8 @@ class TimetableNotifier extends StateNotifier<List<TimetableBlock>> {
     }
     state = _loadAll();
   }
+
+  void reload() => state = _loadAll();
 }
 
 final timetableProvider = StateNotifierProvider<TimetableNotifier, List<TimetableBlock>>(
@@ -130,6 +137,8 @@ class TemplateNotifier extends StateNotifier<List<TemplateBlock>> {
     }
     state = _loadAll();
   }
+
+  void reload() => state = _loadAll();
 }
 
 final templateProvider = StateNotifierProvider<TemplateNotifier, List<TemplateBlock>>(

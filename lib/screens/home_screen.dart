@@ -6,13 +6,13 @@ import '../providers/calendar_provider.dart';
 import '../providers/finance_provider.dart';
 import '../providers/habits_provider.dart';
 import '../providers/health_provider.dart';
+import '../providers/settings_provider.dart';
 import '../providers/tasks_provider.dart';
 import '../providers/timetable_provider.dart';
+import '../screens/settings/settings_screen.dart';
 import '../utils/date_utils.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/section_card.dart';
-
-final _currency = NumberFormat.currency(symbol: '\$');
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -27,10 +27,20 @@ class HomeScreen extends ConsumerWidget {
     final todayHealth = ref.watch(todayHealthEntryProvider);
     final tomorrow = today.add(const Duration(days: 1));
     final tomorrowPlanned = ref.watch(dayIsPlannedProvider(tomorrow));
+    final currency = NumberFormat.currency(symbol: ref.watch(settingsProvider).currencySymbol);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(DateFormat.yMMMEd().format(today)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -110,9 +120,9 @@ class HomeScreen extends ConsumerWidget {
             title: 'This month',
             child: Row(
               children: [
-                Expanded(child: _MiniStat(label: 'Income', value: _currency.format(summary.income))),
-                Expanded(child: _MiniStat(label: 'Expense', value: _currency.format(summary.expense))),
-                Expanded(child: _MiniStat(label: 'Net', value: _currency.format(summary.net))),
+                Expanded(child: _MiniStat(label: 'Income', value: currency.format(summary.income))),
+                Expanded(child: _MiniStat(label: 'Expense', value: currency.format(summary.expense))),
+                Expanded(child: _MiniStat(label: 'Net', value: currency.format(summary.net))),
               ],
             ),
           ),

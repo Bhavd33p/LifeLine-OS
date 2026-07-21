@@ -6,7 +6,9 @@ import '../../providers/habits_provider.dart';
 import '../../widgets/app_text_field.dart';
 
 class HabitFormSheet extends ConsumerStatefulWidget {
-  const HabitFormSheet({super.key});
+  final Habit? existing;
+
+  const HabitFormSheet({super.key, this.existing});
 
   @override
   ConsumerState<HabitFormSheet> createState() => _HabitFormSheetState();
@@ -14,9 +16,11 @@ class HabitFormSheet extends ConsumerStatefulWidget {
 
 class _HabitFormSheetState extends ConsumerState<HabitFormSheet> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _notesController = TextEditingController();
-  HabitFrequency _frequency = HabitFrequency.daily;
+  late final _nameController = TextEditingController(text: widget.existing?.name ?? '');
+  late final _notesController = TextEditingController(text: widget.existing?.notes ?? '');
+  late HabitFrequency _frequency = widget.existing?.frequency ?? HabitFrequency.daily;
+
+  bool get _isEditing => widget.existing != null;
 
   @override
   void dispose() {
@@ -27,11 +31,15 @@ class _HabitFormSheetState extends ConsumerState<HabitFormSheet> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    ref.read(habitsProvider.notifier).addHabit(
-          name: _nameController.text.trim(),
-          notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
-          frequency: _frequency,
-        );
+    final name = _nameController.text.trim();
+    final notes = _notesController.text.trim().isEmpty ? null : _notesController.text.trim();
+    if (_isEditing) {
+      ref.read(habitsProvider.notifier).updateHabit(
+            widget.existing!.copyWith(name: name, notes: notes, frequency: _frequency),
+          );
+    } else {
+      ref.read(habitsProvider.notifier).addHabit(name: name, notes: notes, frequency: _frequency);
+    }
     Navigator.of(context).pop();
   }
 
@@ -50,7 +58,7 @@ class _HabitFormSheetState extends ConsumerState<HabitFormSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('New habit', style: Theme.of(context).textTheme.titleLarge),
+            Text(_isEditing ? 'Edit habit' : 'New habit', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
             AppTextField(
               controller: _nameController,
@@ -71,7 +79,7 @@ class _HabitFormSheetState extends ConsumerState<HabitFormSheet> {
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
-              child: FilledButton(onPressed: _submit, child: const Text('Add habit')),
+              child: FilledButton(onPressed: _submit, child: Text(_isEditing ? 'Save changes' : 'Add habit')),
             ),
           ],
         ),

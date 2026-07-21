@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../models/event.dart';
 import '../../models/work_category.dart';
 import '../../providers/calendar_provider.dart';
 import '../../widgets/app_text_field.dart';
@@ -9,8 +10,9 @@ import '../../widgets/work_category_selector.dart';
 
 class EventFormSheet extends ConsumerStatefulWidget {
   final DateTime initialDate;
+  final CalendarEvent? existing;
 
-  const EventFormSheet({super.key, required this.initialDate});
+  const EventFormSheet({super.key, required this.initialDate, this.existing});
 
   @override
   ConsumerState<EventFormSheet> createState() => _EventFormSheetState();
@@ -18,16 +20,20 @@ class EventFormSheet extends ConsumerStatefulWidget {
 
 class _EventFormSheetState extends ConsumerState<EventFormSheet> {
   final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
-  final _notesController = TextEditingController();
+  late final _titleController = TextEditingController(text: widget.existing?.title ?? '');
+  late final _notesController = TextEditingController(text: widget.existing?.notes ?? '');
   late DateTime _date;
-  TimeOfDay? _time;
-  WorkCategory _category = WorkCategory.other;
+  late TimeOfDay? _time;
+  late WorkCategory _category = widget.existing?.category ?? WorkCategory.other;
+
+  bool get _isEditing => widget.existing != null;
 
   @override
   void initState() {
     super.initState();
-    _date = widget.initialDate;
+    final existing = widget.existing;
+    _date = existing?.date ?? widget.initialDate;
+    _time = existing?.hasTime == true ? TimeOfDay(hour: existing!.hour!, minute: existing.minute ?? 0) : null;
   }
 
   @override
@@ -48,20 +54,36 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
   }
 
   Future<void> _pickTime() async {
-    final picked = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+    final picked = await showTimePicker(context: context, initialTime: _time ?? TimeOfDay.now());
     if (picked != null) setState(() => _time = picked);
   }
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    ref.read(eventsProvider.notifier).addEvent(
-          title: _titleController.text.trim(),
-          date: _date,
-          hour: _time?.hour,
-          minute: _time?.minute,
-          notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
-          category: _category,
-        );
+    final title = _titleController.text.trim();
+    final notes = _notesController.text.trim().isEmpty ? null : _notesController.text.trim();
+    if (_isEditing) {
+      ref.read(eventsProvider.notifier).updateEvent(
+            CalendarEvent(
+              id: widget.existing!.id,
+              title: title,
+              date: _date,
+              hour: _time?.hour,
+              minute: _time?.minute,
+              notes: notes,
+              category: _category,
+            ),
+          );
+    } else {
+      ref.read(eventsProvider.notifier).addEvent(
+            title: title,
+            date: _date,
+            hour: _time?.hour,
+            minute: _time?.minute,
+            notes: notes,
+            category: _category,
+          );
+    }
     Navigator.of(context).pop();
   }
 
@@ -80,7 +102,7 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('New event', style: Theme.of(context).textTheme.titleLarge),
+            Text(_isEditing ? 'Edit event' : 'New event', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
             AppTextField(
               controller: _titleController,
@@ -114,7 +136,7 @@ class _EventFormSheetState extends ConsumerState<EventFormSheet> {
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
-              child: FilledButton(onPressed: _submit, child: const Text('Add event')),
+              child: FilledButton(onPressed: _submit, child: Text(_isEditing ? 'Save changes' : 'Add event')),
             ),
           ],
         ),

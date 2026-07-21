@@ -4,12 +4,11 @@ import 'package:intl/intl.dart';
 
 import '../../models/transaction.dart';
 import '../../providers/finance_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/section_card.dart';
 import '../../widgets/stat_tile.dart';
 import 'transaction_form_sheet.dart';
-
-final _currency = NumberFormat.currency(symbol: '\$');
 
 class FinanceScreen extends ConsumerWidget {
   const FinanceScreen({super.key});
@@ -20,6 +19,8 @@ class FinanceScreen extends ConsumerWidget {
     final breakdown = ref.watch(categoryBreakdownProvider);
     final transactions = ref.watch(transactionsProvider);
     final maxCategory = breakdown.isEmpty ? 0.0 : breakdown.first.value;
+    final currencySymbol = ref.watch(settingsProvider).currencySymbol;
+    final currency = NumberFormat.currency(symbol: currencySymbol);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Finance')),
@@ -39,7 +40,7 @@ class FinanceScreen extends ConsumerWidget {
               Expanded(
                 child: StatTile(
                   label: 'Income',
-                  value: _currency.format(summary.income),
+                  value: currency.format(summary.income),
                   icon: Icons.arrow_downward,
                   color: Colors.green,
                 ),
@@ -48,7 +49,7 @@ class FinanceScreen extends ConsumerWidget {
               Expanded(
                 child: StatTile(
                   label: 'Expense',
-                  value: _currency.format(summary.expense),
+                  value: currency.format(summary.expense),
                   icon: Icons.arrow_upward,
                   color: Colors.redAccent,
                 ),
@@ -57,7 +58,7 @@ class FinanceScreen extends ConsumerWidget {
               Expanded(
                 child: StatTile(
                   label: 'Net',
-                  value: _currency.format(summary.net),
+                  value: currency.format(summary.net),
                   icon: Icons.savings_outlined,
                 ),
               ),
@@ -74,6 +75,7 @@ class FinanceScreen extends ConsumerWidget {
                               label: entry.key,
                               amount: entry.value,
                               fraction: maxCategory == 0 ? 0 : entry.value / maxCategory,
+                              currency: currency,
                             ))
                         .toList(),
                   ),
@@ -84,7 +86,9 @@ class FinanceScreen extends ConsumerWidget {
             child: transactions.isEmpty
                 ? const EmptyState(icon: Icons.receipt_long_outlined, message: 'No transactions yet.')
                 : Column(
-                    children: transactions.map((t) => _TransactionRow(transaction: t)).toList(),
+                    children: transactions
+                        .map((t) => _TransactionRow(transaction: t, currency: currency))
+                        .toList(),
                   ),
           ),
         ],
@@ -97,8 +101,14 @@ class _CategoryBar extends StatelessWidget {
   final String label;
   final double amount;
   final double fraction;
+  final NumberFormat currency;
 
-  const _CategoryBar({required this.label, required this.amount, required this.fraction});
+  const _CategoryBar({
+    required this.label,
+    required this.amount,
+    required this.fraction,
+    required this.currency,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +121,7 @@ class _CategoryBar extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(label, style: Theme.of(context).textTheme.bodyMedium),
-              Text(_currency.format(amount), style: Theme.of(context).textTheme.bodyMedium),
+              Text(currency.format(amount), style: Theme.of(context).textTheme.bodyMedium),
             ],
           ),
           const SizedBox(height: 4),
@@ -131,8 +141,9 @@ class _CategoryBar extends StatelessWidget {
 
 class _TransactionRow extends ConsumerWidget {
   final MoneyTransaction transaction;
+  final NumberFormat currency;
 
-  const _TransactionRow({required this.transaction});
+  const _TransactionRow({required this.transaction, required this.currency});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -163,7 +174,7 @@ class _TransactionRow extends ConsumerWidget {
               : DateFormat.yMMMd().format(transaction.date),
         ),
         trailing: Text(
-          '${isExpense ? '-' : '+'}${_currency.format(transaction.amount)}',
+          '${isExpense ? '-' : '+'}${currency.format(transaction.amount)}',
           style: TextStyle(
             fontWeight: FontWeight.w600,
             color: isExpense ? Colors.redAccent : Colors.green,

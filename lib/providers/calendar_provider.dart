@@ -39,10 +39,17 @@ class EventsNotifier extends StateNotifier<List<CalendarEvent>> {
     state = _loadAll();
   }
 
+  Future<void> updateEvent(CalendarEvent event) async {
+    await StorageService.eventsBox.put(event.id, event.toMap());
+    state = _loadAll();
+  }
+
   Future<void> deleteEvent(String id) async {
     await StorageService.eventsBox.delete(id);
     state = _loadAll();
   }
+
+  void reload() => state = _loadAll();
 }
 
 final eventsProvider = StateNotifierProvider<EventsNotifier, List<CalendarEvent>>(
