@@ -18,7 +18,10 @@
 <div id="app">
   <header class="topbar">
     <h1 class="app-title">Personal OS</h1>
-    <button id="settingsBtn" class="icon-btn" aria-label="Settings" title="Settings">⚙️</button>
+    <div class="topbar-actions">
+      <button id="searchBtn" class="icon-btn" aria-label="Search" title="Search">🔍</button>
+      <button id="settingsBtn" class="icon-btn" aria-label="Settings" title="Settings">⚙️</button>
+    </div>
   </header>
 
   <div id="nudgeBanner" class="nudge-banner" role="status"></div>
@@ -30,6 +33,6 @@
 
 <div id="modalRoot"></div>
 
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
