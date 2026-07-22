@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Personal OS</title>
+<meta name="description" content="A local-first personal operating system: workspaces, labeled tasks, and a linked timetable." />
+<meta name="theme-color" content="#6750A4" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Personal OS" />
+<link rel="apple-touch-icon" href="icons/icon-180.png" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <h1 class="app-title">Personal OS</h1>
+    <div class="topbar-actions">
+      <button id="searchBtn" class="icon-btn" aria-label="Search" title="Search">🔍</button>
+      <button id="settingsBtn" class="icon-btn" aria-label="Settings" title="Settings">⚙️</button>
+    </div>
+  </header>
+
+  <div id="nudgeBanner" class="nudge-banner" role="status"></div>
+
+  <nav id="workspaceNav" class="workspace-nav" aria-label="Workspaces"></nav>
+
+  <main id="content" class="content"></main>
+</div>
+
+<div id="modalRoot"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
