@@ -255,6 +255,98 @@ body {
   filter: grayscale(0.15);
 }
 
+/* --- Motivation banner (Companies) --- */
+
+.motivation-banner {
+  background: var(--accent-gradient);
+  color: var(--accent-fg);
+  font-weight: 700;
+  font-size: 1.02rem;
+  text-align: center;
+  padding: 18px 20px;
+  border-radius: var(--radius-lg);
+  margin-bottom: 14px;
+  box-shadow: var(--glow);
+  letter-spacing: 0.01em;
+}
+
+/* --- Contest schedule (CP/DSA) --- */
+
+.contest-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.contest-heading {
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 10px;
+  color: var(--text);
+}
+.contest-loading {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  margin: 0;
+}
+.contest-fallback {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.contest-fallback a {
+  color: var(--accent);
+  font-weight: 600;
+}
+.contest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.contest-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  text-decoration: none;
+  color: var(--text);
+  transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.contest-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+.contest-platform-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--accent-fg);
+  background: var(--accent);
+  white-space: nowrap;
+}
+.contest-card.platform-codeforces .contest-platform-badge {
+  background: #1F8ACB;
+}
+.contest-title {
+  flex: 1;
+  font-size: 0.88rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.contest-time {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 /* --- Task workspace --- */
 
 .add-task-form {

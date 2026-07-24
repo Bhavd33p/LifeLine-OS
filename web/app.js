@@ -16,9 +16,68 @@ const DEFAULT_WORKSPACES = [
   { id: 'tasks', name: 'Tasks', icon: '✅', system: true, type: 'tasks' },
   { id: 'health', name: 'Health', icon: '❤️', system: true, type: 'tasks' },
   { id: 'cpdsa', name: 'CP / DSA', icon: '💻', system: true, type: 'tasks' },
+  { id: 'companies', name: 'Companies', icon: '🏢', system: true, type: 'tasks' },
   { id: 'skincare', name: 'Skincare', icon: '✨', system: true, type: 'tasks' },
   { id: 'gym', name: 'Gym', icon: '🏋️', system: true, type: 'tasks' },
   { id: 'stats', name: 'Stats', icon: '📊', system: true, type: 'stats' },
+];
+
+const MOTIVATION_BANNER_TEXT = 'Apply daily. You are not destined to be here.';
+
+// Curated MNCs with a strong India SDE1/SDE2 hiring presence, generally regarded
+// (via Blind/Glassdoor/levels.fyi consensus) as paying well with decent-to-great WLB.
+// Notes are qualitative, not quoted offers — always verify current comp on levels.fyi.
+const COMPANY_SEED_DATA = [
+  ['Google', 'Big Tech · top-tier comp, strong WLB'],
+  ['Microsoft', 'Big Tech · strong comp, well-regarded WLB'],
+  ['Amazon', 'Big Tech · high comp, WLB varies by team'],
+  ['Adobe', 'Product · strong comp, good WLB reputation'],
+  ['Salesforce', 'Enterprise SaaS · strong comp & benefits'],
+  ['Atlassian', 'Product (Bangalore) · great WLB, remote-friendly'],
+  ['ServiceNow', 'Enterprise SaaS · strong comp, good culture'],
+  ['Walmart Global Tech', 'Retail tech · solid comp, stable WLB'],
+  ['Visa', 'Fintech/payments · strong comp & stability'],
+  ['Mastercard', 'Fintech/payments · strong comp & stability'],
+  ['PayPal', 'Fintech · good comp, decent WLB'],
+  ['Uber', 'Product · strong comp, fast-paced'],
+  ['LinkedIn', 'Product (Microsoft) · strong comp, good culture'],
+  ['Nutanix', 'Infra/cloud · strong comp, good WLB'],
+  ['Cisco', 'Networking · stable comp, good WLB'],
+  ['Intuit', 'Product · strong comp, well-regarded culture'],
+  ['SAP Labs', 'Enterprise software · solid comp, great WLB'],
+  ['VMware (Broadcom)', 'Infra/cloud · strong comp'],
+  ['Qualcomm', 'Semiconductor · strong comp, good WLB'],
+  ['NVIDIA', 'Semiconductor/AI · top-tier comp'],
+  ['Texas Instruments', 'Semiconductor · stable comp, great WLB'],
+  ['Micron Technology', 'Semiconductor · strong comp, good WLB'],
+  ['Juniper Networks', 'Networking · solid comp, good WLB'],
+  ['Arista Networks', 'Networking · strong comp'],
+  ['Dell Technologies', 'Hardware/cloud · stable comp, good WLB'],
+  ['Hewlett Packard Enterprise', 'Hardware/cloud · stable comp, good WLB'],
+  ['IBM', 'Enterprise/research · stable comp, good WLB'],
+  ['Goldman Sachs (Engineering)', 'Finance tech · very strong comp'],
+  ['Morgan Stanley (Technology)', 'Finance tech · strong comp'],
+  ['JPMorgan Chase (Technology)', 'Finance tech · strong comp, stable'],
+  ['Barclays (Technology)', 'Finance tech · good comp, good WLB'],
+  ['Deutsche Bank (Technology)', 'Finance tech · good comp, good WLB'],
+  ['American Express (Technology)', 'Finance tech · good comp, great WLB'],
+  ['Rubrik', 'Cloud data mgmt · strong comp'],
+  ['Confluent', 'Data infra · strong comp'],
+  ['Databricks', 'Data/AI · top-tier comp'],
+  ['Splunk (Cisco)', 'Data/observability · strong comp'],
+  ['Palo Alto Networks', 'Security · strong comp'],
+  ['Akamai Technologies', 'Cloud/CDN · solid comp, good WLB'],
+  ['Autodesk', 'Product · solid comp, good WLB'],
+  ['Workday', 'Enterprise SaaS · strong comp, good culture'],
+  ['Twilio', 'Product · solid comp'],
+  ['GoDaddy', 'Product · solid comp, good WLB'],
+  ['Expedia Group', 'Travel tech · solid comp, good WLB'],
+  ['UBS', 'Finance tech · strong comp, good WLB'],
+  ['Wells Fargo (Technology)', 'Finance tech · good comp, great WLB'],
+  ['Target Corporation (Tech)', 'Retail tech · good comp, great WLB'],
+  ['Samsung R&D Institute India', 'R&D · solid comp, stable WLB'],
+  ['Bosch Global Software Technologies', 'Auto/industrial tech · great WLB'],
+  ['Philips Innovation Campus', 'HealthTech R&D · great WLB'],
 ];
 
 const PRIORITIES = ['low', 'medium', 'high'];
@@ -59,6 +118,31 @@ const Store = {
     if (!this.state.settings) this.state.settings = defaultState().settings;
     if (!this.state.workspaces.some((w) => w.id === 'stats')) {
       this.state.workspaces.push({ id: 'stats', name: 'Stats', icon: '📊', system: true, type: 'stats' });
+    }
+    if (!this.state.workspaces.some((w) => w.id === 'companies')) {
+      const cpdsaIdx = this.state.workspaces.findIndex((w) => w.id === 'cpdsa');
+      const insertAt = cpdsaIdx === -1 ? this.state.workspaces.length : cpdsaIdx + 1;
+      this.state.workspaces.splice(insertAt, 0, { id: 'companies', name: 'Companies', icon: '🏢', system: true, type: 'tasks' });
+    }
+    if (!this.state.companiesSeeded) {
+      COMPANY_SEED_DATA.forEach(([name, note]) => {
+        this.state.tasks.push({
+          id: uid(),
+          workspaceId: 'companies',
+          title: name,
+          notes: note,
+          labels: [],
+          done: false,
+          priority: null,
+          dueDate: null,
+          dueTime: null,
+          recurrence: 'none',
+          completions: {},
+          createdAt: Date.now(),
+          completedAt: null,
+        });
+      });
+      this.state.companiesSeeded = true;
     }
     this.state.tasks.forEach((t) => {
       if (t.priority === undefined) t.priority = null;
@@ -281,6 +365,128 @@ let currentWorkspaceId = localStorage.getItem(LAST_WORKSPACE_KEY) || 'timetable'
 let currentTimetableDate = todayStr();
 const currentTaskFilter = {};
 const currentTaskSort = {};
+
+/* ============================== Contest schedule (CP/DSA) ============================== */
+
+let contestCache = null; // { leetcode: [...], codeforces: [...] } | 'error'
+let contestFetchInFlight = false;
+
+async function fetchContests() {
+  if (contestFetchInFlight || contestCache) return;
+  contestFetchInFlight = true;
+  try {
+    const [lcRes, cfRes] = await Promise.all([
+      fetch('https://competeapi.vercel.app/contests/leetcode/'),
+      fetch('https://competeapi.vercel.app/contests/codeforces/'),
+    ]);
+    if (!lcRes.ok || !cfRes.ok) throw new Error('bad response');
+    const lcData = await lcRes.json();
+    const cfData = await cfRes.json();
+    const lcContests = (lcData?.data?.topTwoContests || []).map((c) => ({
+      title: c.title,
+      startTime: c.startTime * 1000,
+      duration: c.duration * 1000,
+      url: 'https://leetcode.com/contest/',
+      platform: 'LeetCode',
+    }));
+    const cfContests = (Array.isArray(cfData) ? cfData : [])
+      .filter((c) => c.startTime > Date.now())
+      .sort((a, b) => a.startTime - b.startTime)
+      .slice(0, 4)
+      .map((c) => ({
+        title: c.title,
+        startTime: c.startTime,
+        duration: c.duration,
+        url: c.url || 'https://codeforces.com/contests',
+        platform: 'Codeforces',
+      }));
+    contestCache = { leetcode: lcContests, codeforces: cfContests };
+  } catch (err) {
+    contestCache = 'error';
+  } finally {
+    contestFetchInFlight = false;
+    render();
+  }
+}
+
+function formatContestTime(ms) {
+  const d = new Date(ms);
+  const diffMs = ms - Date.now();
+  const diffH = diffMs / 3600000;
+  let rel;
+  if (diffH < 1) rel = `in ${Math.max(1, Math.round(diffMs / 60000))}m`;
+  else if (diffH < 24) rel = `in ${Math.round(diffH)}h`;
+  else rel = `in ${Math.round(diffH / 24)}d`;
+  const abs = d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return `${abs} · ${rel}`;
+}
+
+function renderContestSection() {
+  const section = document.createElement('div');
+  section.className = 'contest-section';
+
+  const heading = document.createElement('div');
+  heading.className = 'contest-heading';
+  heading.textContent = 'Upcoming Contests';
+  section.appendChild(heading);
+
+  if (!contestCache) {
+    const loading = document.createElement('p');
+    loading.className = 'contest-loading';
+    loading.textContent = 'Loading live contest schedule...';
+    section.appendChild(loading);
+    fetchContests();
+    return section;
+  }
+
+  if (contestCache === 'error') {
+    const fallback = document.createElement('div');
+    fallback.className = 'contest-fallback';
+    fallback.innerHTML = 'Could not load live schedule. Check ' +
+      '<a href="https://leetcode.com/contest/" target="_blank" rel="noopener">LeetCode contests</a> or ' +
+      '<a href="https://codeforces.com/contests" target="_blank" rel="noopener">Codeforces contests</a> directly.';
+    section.appendChild(fallback);
+    return section;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'contest-list';
+  const all = [...contestCache.leetcode, ...contestCache.codeforces].sort((a, b) => a.startTime - b.startTime);
+
+  if (all.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'contest-loading';
+    empty.textContent = 'No upcoming contests found.';
+    list.appendChild(empty);
+  } else {
+    all.forEach((c) => {
+      const card = document.createElement('a');
+      card.className = 'contest-card platform-' + c.platform.toLowerCase();
+      card.href = c.url;
+      card.target = '_blank';
+      card.rel = 'noopener';
+
+      const badge = document.createElement('span');
+      badge.className = 'contest-platform-badge';
+      badge.textContent = c.platform;
+      card.appendChild(badge);
+
+      const title = document.createElement('span');
+      title.className = 'contest-title';
+      title.textContent = c.title;
+      card.appendChild(title);
+
+      const time = document.createElement('span');
+      time.className = 'contest-time';
+      time.textContent = formatContestTime(c.startTime);
+      card.appendChild(time);
+
+      list.appendChild(card);
+    });
+  }
+  section.appendChild(list);
+  return section;
+}
 
 function setWorkspace(id) {
   currentWorkspaceId = id;
@@ -508,6 +714,17 @@ function buildTaskDetailsSection(task) {
 function renderTaskWorkspaceView(ws) {
   const container = document.createElement('div');
   container.className = 'task-workspace';
+
+  if (ws.id === 'companies') {
+    const banner = document.createElement('div');
+    banner.className = 'motivation-banner';
+    banner.textContent = MOTIVATION_BANNER_TEXT;
+    container.appendChild(banner);
+  }
+
+  if (ws.id === 'cpdsa') {
+    container.appendChild(renderContestSection());
+  }
 
   const form = document.createElement('form');
   form.className = 'add-task-form';
