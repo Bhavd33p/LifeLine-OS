@@ -615,18 +615,34 @@ function closeModal() {
 function renderWorkspaceNav() {
   const nav = document.getElementById('workspaceNav');
   nav.innerHTML = '';
+  let activeChip = null;
   Store.state.workspaces.forEach((ws) => {
     const chip = document.createElement('button');
-    chip.className = 'ws-chip' + (ws.id === currentWorkspaceId ? ' active' : '');
+    const isActive = ws.id === currentWorkspaceId;
+    chip.className = 'ws-chip' + (isActive ? ' active' : '');
     chip.innerHTML = `<span>${ws.icon || '📁'}</span><span>${escapeHtml(ws.name)}</span>`;
     chip.addEventListener('click', () => setWorkspace(ws.id));
     nav.appendChild(chip);
+    if (isActive) activeChip = chip;
   });
   const addChip = document.createElement('button');
   addChip.className = 'ws-chip ws-add';
   addChip.textContent = '+ Workspace';
   addChip.addEventListener('click', openAddWorkspaceModal);
   nav.appendChild(addChip);
+  if (activeChip) activeChip.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+  updateNavScrollFade(nav);
+}
+
+function updateNavScrollFade(nav) {
+  const apply = () => {
+    const atStart = nav.scrollLeft <= 4;
+    const atEnd = nav.scrollLeft + nav.clientWidth >= nav.scrollWidth - 4;
+    nav.classList.toggle('fade-start', !atStart);
+    nav.classList.toggle('fade-end', !atEnd);
+  };
+  apply();
+  nav.onscroll = apply;
 }
 
 function openAddWorkspaceModal() {
@@ -1901,4 +1917,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
+  const topbar = document.querySelector('.topbar');
+  const updateTopbarShadow = () => topbar.classList.toggle('scrolled', window.scrollY > 2);
+  window.addEventListener('scroll', updateTopbarShadow, { passive: true });
+  updateTopbarShadow();
 });
