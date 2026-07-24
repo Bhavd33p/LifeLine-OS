@@ -95,7 +95,12 @@ function defaultState() {
     blocks: [],
     template: [], // block-shape without date
     labels: [...DEFAULT_LABELS],
-    settings: { theme: 'system', reminderEnabled: false, reminderTime: '20:00' },
+    settings: {
+      theme: 'system',
+      alarms: [
+        { id: 'plan-tomorrow', label: "Plan tomorrow's timetable", time: '20:00', enabled: false, checkPlanning: true },
+      ],
+    },
   };
 }
 
@@ -116,6 +121,17 @@ const Store = {
     if (!Array.isArray(this.state.labels)) this.state.labels = [...DEFAULT_LABELS];
     if (!Array.isArray(this.state.template)) this.state.template = [];
     if (!this.state.settings) this.state.settings = defaultState().settings;
+    if (!Array.isArray(this.state.settings.alarms)) {
+      this.state.settings.alarms = [{
+        id: 'plan-tomorrow',
+        label: "Plan tomorrow's timetable",
+        time: this.state.settings.reminderTime || '20:00',
+        enabled: !!this.state.settings.reminderEnabled,
+        checkPlanning: true,
+      }];
+      delete this.state.settings.reminderEnabled;
+      delete this.state.settings.reminderTime;
+    }
     if (!this.state.workspaces.some((w) => w.id === 'stats')) {
       this.state.workspaces.push({ id: 'stats', name: 'Stats', icon: '📊', system: true, type: 'stats' });
     }
@@ -1627,32 +1643,87 @@ function openSettingsModal() {
 
   const reminder = document.createElement('div');
   reminder.className = 'settings-section';
-  reminder.innerHTML = '<h3>Plan-tomorrow reminder</h3>';
-  const switchRow = document.createElement('label');
-  switchRow.className = 'switch-row';
-  const enabledCheck = document.createElement('input');
-  enabledCheck.type = 'checkbox';
-  enabledCheck.checked = s.reminderEnabled;
-  enabledCheck.addEventListener('change', (e) => {
-    Store.state.settings.reminderEnabled = e.target.checked;
-    Store.save();
-    if (e.target.checked) requestNotificationPermission();
-  });
-  switchRow.appendChild(enabledCheck);
-  switchRow.appendChild(document.createTextNode('Enabled'));
-  reminder.appendChild(switchRow);
+  reminder.innerHTML = '<h3>Alarms</h3>';
 
-  const timeLabel = document.createElement('label');
-  timeLabel.textContent = 'Time';
-  const timeInput = document.createElement('input');
-  timeInput.type = 'time';
-  timeInput.value = s.reminderTime;
-  timeInput.addEventListener('change', (e) => {
-    Store.state.settings.reminderTime = e.target.value;
+  const alarmList = document.createElement('div');
+  alarmList.className = 'alarm-list';
+
+  function renderAlarmRow(alarm) {
+    const row = document.createElement('div');
+    row.className = 'alarm-row';
+
+    const enabledCheck = document.createElement('input');
+    enabledCheck.type = 'checkbox';
+    enabledCheck.checked = alarm.enabled;
+    enabledCheck.addEventListener('change', (e) => {
+      alarm.enabled = e.target.checked;
+      Store.save();
+      if (e.target.checked) requestNotificationPermission();
+    });
+    row.appendChild(enabledCheck);
+
+    const timeInput = document.createElement('input');
+    timeInput.type = 'time';
+    timeInput.className = 'alarm-time-input';
+    timeInput.value = alarm.time;
+    timeInput.addEventListener('change', (e) => {
+      alarm.time = e.target.value;
+      Store.save();
+    });
+    row.appendChild(timeInput);
+
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'alarm-label';
+    labelSpan.textContent = alarm.label;
+    row.appendChild(labelSpan);
+
+    if (alarm.id !== 'plan-tomorrow') {
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'icon-btn small';
+      delBtn.textContent = '✕';
+      delBtn.addEventListener('click', () => {
+        Store.state.settings.alarms = Store.state.settings.alarms.filter((a) => a.id !== alarm.id);
+        Store.save();
+        closeModal();
+        openSettingsModal();
+      });
+      row.appendChild(delBtn);
+    }
+
+    return row;
+  }
+
+  Store.state.settings.alarms.forEach((alarm) => alarmList.appendChild(renderAlarmRow(alarm)));
+  reminder.appendChild(alarmList);
+
+  const addForm = document.createElement('form');
+  addForm.className = 'add-alarm-form';
+  const addTime = document.createElement('input');
+  addTime.type = 'time';
+  addTime.value = '08:00';
+  addForm.appendChild(addTime);
+  const addLabel = document.createElement('input');
+  addLabel.type = 'text';
+  addLabel.placeholder = 'Alarm label...';
+  addLabel.required = true;
+  addForm.appendChild(addLabel);
+  const addBtn = document.createElement('button');
+  addBtn.type = 'submit';
+  addBtn.className = 'btn-mini';
+  addBtn.textContent = 'Add alarm';
+  addForm.appendChild(addBtn);
+  addForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const label = addLabel.value.trim();
+    if (!label) return;
+    Store.state.settings.alarms.push({ id: uid(), label, time: addTime.value, enabled: true, checkPlanning: false });
     Store.save();
+    requestNotificationPermission();
+    closeModal();
+    openSettingsModal();
   });
-  timeLabel.appendChild(timeInput);
-  reminder.appendChild(timeLabel);
+  reminder.appendChild(addForm);
 
   const hint = document.createElement('p');
   hint.className = 'hint';
@@ -1742,7 +1813,7 @@ function importBackup(file) {
 /* ============================== Reminder (best-effort) ============================== */
 
 let reminderInterval = null;
-let lastReminderFiredDate = null;
+const lastAlarmFiredDate = {};
 
 function requestNotificationPermission() {
   if ('Notification' in window && Notification.permission === 'default') {
@@ -1757,19 +1828,23 @@ function startReminderLoop() {
 }
 
 function checkReminder() {
-  const s = Store.state.settings;
-  if (!s.reminderEnabled) return;
+  const alarms = Store.state.settings.alarms || [];
+  if (!alarms.some((a) => a.enabled)) return;
   const now = new Date();
   const nowStr = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
   const today = todayStr();
-  if (nowStr === s.reminderTime && lastReminderFiredDate !== today) {
-    lastReminderFiredDate = today;
-    const tomorrow = addDaysStr(today, 1);
-    const planned = Store.state.blocks.some((b) => b.date === tomorrow);
-    if (!planned && 'Notification' in window && Notification.permission === 'granted') {
-      new Notification('Plan tomorrow', { body: "You haven't built tomorrow's timetable yet." });
+  alarms.forEach((alarm) => {
+    if (!alarm.enabled || alarm.time !== nowStr || lastAlarmFiredDate[alarm.id] === today) return;
+    lastAlarmFiredDate[alarm.id] = today;
+    if (alarm.checkPlanning) {
+      const tomorrow = addDaysStr(today, 1);
+      const planned = Store.state.blocks.some((b) => b.date === tomorrow);
+      if (planned) return;
     }
-  }
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(alarm.label, alarm.checkPlanning ? { body: "You haven't built tomorrow's timetable yet." } : undefined);
+    }
+  });
 }
 
 /* ============================== Theme ============================== */
