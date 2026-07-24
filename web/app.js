@@ -144,6 +144,24 @@ const Store = {
       });
       this.state.companiesSeeded = true;
     }
+    if (!this.state.templeTaskSeeded) {
+      this.state.tasks.push({
+        id: uid(),
+        workspaceId: 'health',
+        title: 'Go to temple',
+        notes: '',
+        labels: [],
+        done: false,
+        priority: null,
+        dueDate: null,
+        dueTime: null,
+        recurrence: 'daily',
+        completions: {},
+        createdAt: Date.now(),
+        completedAt: null,
+      });
+      this.state.templeTaskSeeded = true;
+    }
     this.state.tasks.forEach((t) => {
       if (t.priority === undefined) t.priority = null;
       if (t.dueDate === undefined) t.dueDate = null;
