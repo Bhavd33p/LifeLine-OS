@@ -118,9 +118,21 @@ const Store = {
   },
   /** Fills in fields added by later versions so old saved/imported/synced data keeps working. */
   migrate() {
+    // Every collection below is indexed into unguarded all over the render code,
+    // so anything malformed (a partial import, a half-written synced doc) has to
+    // be repaired here or the whole app renders blank.
+    if (!Array.isArray(this.state.workspaces)) this.state.workspaces = defaultState().workspaces;
+    if (!Array.isArray(this.state.tasks)) this.state.tasks = [];
+    if (!Array.isArray(this.state.blocks)) this.state.blocks = [];
     if (!Array.isArray(this.state.labels)) this.state.labels = [...DEFAULT_LABELS];
     if (!Array.isArray(this.state.template)) this.state.template = [];
-    if (!this.state.settings) this.state.settings = defaultState().settings;
+    this.state.workspaces = this.state.workspaces.filter((w) => w && typeof w === 'object' && w.id);
+    this.state.tasks = this.state.tasks.filter((t) => t && typeof t === 'object' && t.id);
+    this.state.blocks = this.state.blocks.filter((b) => b && typeof b === 'object' && b.id);
+    if (this.state.workspaces.length === 0) this.state.workspaces = defaultState().workspaces;
+    if (!this.state.settings || typeof this.state.settings !== 'object') {
+      this.state.settings = defaultState().settings;
+    }
     if (!Array.isArray(this.state.settings.alarms)) {
       this.state.settings.alarms = [{
         id: 'plan-tomorrow',
@@ -183,14 +195,31 @@ const Store = {
       if (t.dueDate === undefined) t.dueDate = null;
       if (t.dueTime === undefined) t.dueTime = null;
       if (t.recurrence === undefined) t.recurrence = 'none';
-      if (!t.completions) t.completions = {};
+      if (!t.completions || typeof t.completions !== 'object') t.completions = {};
       if (t.completedAt === undefined) t.completedAt = t.done ? (t.createdAt || Date.now()) : null;
       if (t.notes === undefined) t.notes = '';
+      // Filtering does t.labels.includes(...) on every render.
+      if (!Array.isArray(t.labels)) t.labels = [];
+      if (typeof t.title !== 'string') t.title = String(t.title == null ? '' : t.title);
+      if (typeof t.createdAt !== 'number') t.createdAt = Date.now();
+    });
+    this.state.blocks.forEach((b) => {
+      if (!Array.isArray(b.subtasks)) b.subtasks = [];
     });
     this.state.version = 2;
   },
   save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+      this.saveFailed = false;
+    } catch (e) {
+      // Quota exceeded (or storage blocked in private mode). The in-memory state
+      // is still good, so let the session continue rather than throwing mid-edit —
+      // but tell the user, because nothing is being persisted any more.
+      this.saveFailed = true;
+      showToast('Could not save — device storage is full. Export a backup before closing.', 'error');
+      return;
+    }
     if (typeof Store.afterSave === 'function') Store.afterSave();
   },
 };
@@ -205,6 +234,23 @@ function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
+}
+
+let toastTimer = null;
+
+/** Non-blocking status message. Used where alert() would trap the user mid-edit. */
+function showToast(message, kind) {
+  let el = document.getElementById('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    document.body.appendChild(el);
+  }
+  el.className = 'toast' + (kind ? ' toast-' + kind : '') + ' visible';
+  el.textContent = message;
+  el.setAttribute('role', 'status');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.classList.remove('visible'); }, 5000);
 }
 
 function pad2(n) { return String(n).padStart(2, '0'); }
@@ -620,7 +666,7 @@ function renderWorkspaceNav() {
     const chip = document.createElement('button');
     const isActive = ws.id === currentWorkspaceId;
     chip.className = 'ws-chip' + (isActive ? ' active' : '');
-    chip.innerHTML = `<span>${ws.icon || '📁'}</span><span>${escapeHtml(ws.name)}</span>`;
+    chip.innerHTML = `<span>${escapeHtml(ws.icon || '📁')}</span><span>${escapeHtml(ws.name || 'Untitled')}</span>`;
     chip.addEventListener('click', () => setWorkspace(ws.id));
     nav.appendChild(chip);
     if (isActive) activeChip = chip;
@@ -1808,19 +1854,41 @@ function exportBackup() {
 }
 
 function importBackup(file) {
+  if (file && file.size > 20 * 1024 * 1024) {
+    alert('That file is too large to be a Personal OS backup.');
+    return;
+  }
   const reader = new FileReader();
+  reader.onerror = () => alert('Could not read that file.');
   reader.onload = () => {
+    let data;
     try {
-      const data = JSON.parse(reader.result);
-      if (!data || !Array.isArray(data.workspaces) || !Array.isArray(data.tasks)) throw new Error('bad format');
-      if (!confirm('Replace all current data with this backup?')) return;
+      data = JSON.parse(reader.result);
+    } catch (e) {
+      alert('Could not read that file — it is not valid JSON.');
+      return;
+    }
+    if (!data || typeof data !== 'object' || !Array.isArray(data.workspaces) || !Array.isArray(data.tasks)) {
+      alert('That JSON is not a Personal OS backup (missing workspaces/tasks).');
+      return;
+    }
+    const summary = `${data.workspaces.length} workspaces, ${data.tasks.length} tasks, `
+      + `${Array.isArray(data.blocks) ? data.blocks.length : 0} timetable blocks`;
+    if (!confirm(`Replace ALL current data with this backup?\n\nBackup contains: ${summary}\n\nThis cannot be undone.`)) return;
+    const previous = Store.state;
+    try {
       Store.state = data;
       Store.migrate();
       Store.save();
       closeModal();
       render();
+      showToast('Backup imported.', 'success');
     } catch (e) {
-      alert('Could not read that file — is it a Personal OS backup JSON?');
+      // Roll back rather than leaving the app on a half-applied import.
+      Store.state = previous;
+      Store.save();
+      render();
+      alert('That backup could not be applied — your existing data was kept.');
     }
   };
   reader.readAsText(file);
@@ -1889,19 +1957,70 @@ function renderNudgeBanner() {
 /* ============================== Root render ============================== */
 
 function render() {
-  renderNudgeBanner();
-  renderWorkspaceNav();
-  const ws = getWorkspace(currentWorkspaceId);
   const content = document.getElementById('content');
-  content.innerHTML = '';
-  if (!ws) {
-    currentWorkspaceId = Store.state.workspaces[0].id;
-    render();
-    return;
+  try {
+    renderNudgeBanner();
+    renderWorkspaceNav();
+    let ws = getWorkspace(currentWorkspaceId);
+    content.innerHTML = '';
+    if (!ws) {
+      // Fall back to the first workspace rather than recursing — a stale
+      // last-workspace id used to blank the screen on load.
+      ws = Store.state.workspaces[0];
+      if (!ws) throw new Error('no workspaces');
+      currentWorkspaceId = ws.id;
+      renderWorkspaceNav();
+    }
+    if (ws.type === 'timetable') content.appendChild(renderTimetableView());
+    else if (ws.type === 'stats') content.appendChild(renderStatsView());
+    else content.appendChild(renderTaskWorkspaceView(ws));
+  } catch (err) {
+    renderErrorState(content, err);
   }
-  if (ws.type === 'timetable') content.appendChild(renderTimetableView());
-  else if (ws.type === 'stats') content.appendChild(renderStatsView());
-  else content.appendChild(renderTaskWorkspaceView(ws));
+}
+
+/** Last resort so a bad record shows a recoverable screen instead of a blank page. */
+function renderErrorState(content, err) {
+  if (!content) return;
+  content.innerHTML = '';
+  const box = document.createElement('div');
+  box.className = 'error-state';
+
+  const heading = document.createElement('h3');
+  heading.textContent = 'Something went wrong rendering this view';
+  box.appendChild(heading);
+
+  const detail = document.createElement('p');
+  detail.className = 'error-detail';
+  detail.textContent = (err && err.message) ? String(err.message) : 'Unknown error';
+  box.appendChild(detail);
+
+  const hint = document.createElement('p');
+  hint.className = 'hint';
+  hint.textContent = 'Your data is still saved. Export a backup before trying anything else.';
+  box.appendChild(hint);
+
+  const actions = document.createElement('div');
+  actions.className = 'action-row';
+
+  const exportBtn = document.createElement('button');
+  exportBtn.className = 'btn-primary';
+  exportBtn.textContent = 'Export backup';
+  exportBtn.addEventListener('click', exportBackup);
+  actions.appendChild(exportBtn);
+
+  const homeBtn = document.createElement('button');
+  homeBtn.className = 'btn-outline';
+  homeBtn.textContent = 'Go to first workspace';
+  homeBtn.addEventListener('click', () => {
+    const first = Store.state.workspaces && Store.state.workspaces[0];
+    if (first) setWorkspace(first.id);
+  });
+  actions.appendChild(homeBtn);
+
+  box.appendChild(actions);
+  content.appendChild(box);
+  if (err) console.error('Personal OS render error:', err);
 }
 
 /* ============================== Init ============================== */

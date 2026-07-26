@@ -290,6 +290,51 @@ body {
   filter: grayscale(0.15);
 }
 
+/* --- Error state / toast --- */
+
+.error-state {
+  background: var(--surface);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+.error-state h3 { margin: 0 0 8px; font-size: 1rem; color: var(--danger); }
+.error-detail {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--surface-alt);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin: 0 0 10px;
+  overflow-wrap: anywhere;
+}
+.error-state .action-row { margin-top: 14px; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0) + 20px);
+  transform: translate(-50%, 16px);
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  font-size: 0.88rem;
+  line-height: 1.4;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms var(--ease), transform 200ms var(--ease);
+}
+.toast.visible { opacity: 1; transform: translate(-50%, 0); }
+.toast-error { border-color: var(--danger); }
+.toast-success { border-color: var(--success); }
+
 /* --- Motivation banner (Companies) --- */
 
 .motivation-banner {
@@ -500,9 +545,17 @@ body {
   accent-color: var(--accent);
   cursor: pointer;
 }
-.task-main { flex: 1; cursor: pointer; }
-.task-title-row { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
-.task-title { font-size: 0.96rem; font-weight: 500; }
+/* min-width:0 lets this flex child actually shrink; without it a long unbroken
+   title (a pasted URL) pushes the row wider than the viewport. */
+.task-main { flex: 1; min-width: 0; cursor: pointer; }
+.task-title-row { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; min-width: 0; }
+.task-title {
+  font-size: 0.96rem;
+  font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 .task-meta { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 5px; }
 .task-labels { display: flex; flex-wrap: wrap; gap: 4px; }
 
@@ -620,8 +673,8 @@ body {
   line-height: 1.35;
   font-variant-numeric: tabular-nums;
 }
-.block-title-row { flex: 1; }
-.block-title { font-size: 0.98rem; font-weight: 600; }
+.block-title-row { flex: 1; min-width: 0; }
+.block-title { font-size: 0.98rem; font-weight: 600; overflow-wrap: anywhere; word-break: break-word; }
 .linked-badge {
   display: inline-block;
   margin-top: 4px;
