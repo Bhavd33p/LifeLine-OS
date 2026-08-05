@@ -9,10 +9,10 @@
 // Authentication, not by hiding this config. Until you fill these in,
 // Personal OS runs entirely local-only (no sync), exactly as before.
 export const firebaseConfig = {
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_PROJECT.firebaseapp.com',
-  projectId: 'YOUR_PROJECT',
-  storageBucket: 'YOUR_PROJECT.appspot.com',
-  messagingSenderId: 'YOUR_SENDER_ID',
-  appId: 'YOUR_APP_ID',
+  apiKey: 'AIzaSyCk3qfv8uqMk_73vDc2VKhNlusIDR9hwoQ',
+  authDomain: 'bhavdeep-os.firebaseapp.com',
+  projectId: 'bhavdeep-os',
+  storageBucket: 'bhavdeep-os.firebasestorage.app',
+  messagingSenderId: '597791771626',
+  appId: '1:597791771626:web:31fe0967cf95b64b7dc093',
 };
