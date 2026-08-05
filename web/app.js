@@ -3,6 +3,7 @@
 import {
   firebaseReady, onAuthChange, signUp, signIn, signOutUser, watchUserDoc, pushState,
 } from './sync.js';
+import { icon, addIcon, workspaceIcon } from './icons.js';
 
 /* ============================== Data model ============================== */
 
@@ -276,6 +277,40 @@ function formatDateLabel(str) {
   const [y, m, d] = str.split('-').map(Number);
   const dt = new Date(y, m - 1, d);
   return dt.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+/** 'HH:MM' -> minutes since midnight. Returns NaN for malformed input. */
+function minutesOf(hhmm) {
+  if (typeof hhmm !== 'string') return NaN;
+  const [h, m] = hhmm.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return NaN;
+  return h * 60 + m;
+}
+
+function nowMinutes() {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+/** '14:30' -> '2:30 pm' — friendlier than 24h on a glanceable timeline. */
+function formatTime12(hhmm) {
+  const mins = minutesOf(hhmm);
+  if (!Number.isFinite(mins)) return hhmm || '';
+  const h24 = Math.floor(mins / 60);
+  const m = mins % 60;
+  const suffix = h24 < 12 ? 'am' : 'pm';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${pad2(m)} ${suffix}`;
+}
+
+/** 95 -> '1h 35m' */
+function formatDuration(mins) {
+  if (!Number.isFinite(mins) || mins <= 0) return '';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h && m) return `${h}h ${m}m`;
+  if (h) return `${h}h`;
+  return `${m}m`;
 }
 
 function getWorkspace(id) { return Store.state.workspaces.find((w) => w.id === id); }
@@ -580,17 +615,94 @@ let currentUser = null;
 let applyingRemote = false;
 let pushTimer = null;
 let lastSyncError = null;
+let lastSyncedAt = null;
 
 function schedulePush() {
   if (!currentUser || applyingRemote) return;
   clearTimeout(pushTimer);
   pushTimer = setTimeout(() => {
     pushState(currentUser.uid, Store.state)
-      .then(() => { lastSyncError = null; })
+      .then(() => { lastSyncError = null; lastSyncedAt = Date.now(); })
       .catch((e) => { lastSyncError = e.message || String(e); });
   }, 600);
 }
 Store.afterSave = schedulePush;
+
+/** True when this device holds work that a fresh install wouldn't have. */
+function hasLocalContent() {
+  const s = Store.state;
+  if (!s) return false;
+  if (s.blocks.length || s.template.length) return true;
+  // The seeded Companies list and temple task exist on every fresh install, so
+  // they don't count as content the user would miss.
+  return s.tasks.some((t) => t.workspaceId !== 'companies' && t.title !== 'Go to temple');
+}
+
+function countOf(state) {
+  return {
+    tasks: Array.isArray(state.tasks) ? state.tasks.length : 0,
+    blocks: Array.isArray(state.blocks) ? state.blocks.length : 0,
+  };
+}
+
+function sameState(a, b) {
+  try { return JSON.stringify(a) === JSON.stringify(b); } catch (e) { return false; }
+}
+
+/** Blocking choice — either answer loses data, so it can't be picked for them. */
+function openSyncConflictModal(uid, remoteData) {
+  const body = document.createElement('div');
+
+  const p = document.createElement('p');
+  p.className = 'hint';
+  p.textContent = 'This device and your cloud account both have data, and they differ. '
+    + 'Choose which one to keep — the other will be replaced.';
+  body.appendChild(p);
+
+  const local = countOf(Store.state);
+  const remote = countOf(remoteData);
+
+  const mkOption = (heading, counts, onPick) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'search-result-row';
+    const left = document.createElement('span');
+    left.textContent = heading;
+    const right = document.createElement('span');
+    right.className = 'hint';
+    right.textContent = `${counts.tasks} tasks · ${counts.blocks} blocks`;
+    btn.appendChild(left);
+    btn.appendChild(right);
+    btn.addEventListener('click', onPick);
+    return btn;
+  };
+
+  body.appendChild(mkOption('Keep this device’s data', local, () => {
+    closeModal();
+    // Overwrite the cloud with what's here.
+    pushState(uid, Store.state)
+      .then(() => showToast('Cloud updated from this device.', 'success'))
+      .catch((e) => { lastSyncError = e.message || String(e); showToast('Could not update cloud: ' + lastSyncError, 'error'); });
+  }));
+
+  body.appendChild(mkOption('Use the cloud’s data', remote, () => {
+    closeModal();
+    applyingRemote = true;
+    Store.state = remoteData;
+    Store.migrate();
+    Store.save();
+    applyingRemote = false;
+    render();
+    showToast('This device now matches the cloud.', 'success');
+  }));
+
+  const note = document.createElement('p');
+  note.className = 'hint';
+  note.textContent = 'Not sure? Close this, export a backup from Settings → Data first, then sign in again.';
+  body.appendChild(note);
+
+  openModal('Which copy should win?', body);
+}
 
 async function initSync() {
   if (!firebaseReady) return;
@@ -598,17 +710,31 @@ async function initSync() {
     await onAuthChange(async (user) => {
       currentUser = user;
       if (user) {
+        let firstSnapshot = true;
         try {
           await watchUserDoc(user.uid, (remoteData) => {
-            applyingRemote = true;
-            if (remoteData) {
-              Store.state = remoteData;
-              Store.migrate();
-              Store.save();
-            } else {
+            const wasFirst = firstSnapshot;
+            firstSnapshot = false;
+
+            if (!remoteData) {
               // First sign-in on this account: seed the cloud with what's local.
               pushState(user.uid, Store.state).catch((e) => { lastSyncError = e.message || String(e); });
+              return;
             }
+
+            // The first snapshot after signing in is the only moment where two
+            // independent histories meet. Blindly taking the remote copy here
+            // silently destroys anything created on this device before signing
+            // in, so ask rather than guess.
+            if (wasFirst && hasLocalContent() && !sameState(remoteData, Store.state)) {
+              openSyncConflictModal(user.uid, remoteData);
+              return;
+            }
+
+            applyingRemote = true;
+            Store.state = remoteData;
+            Store.migrate();
+            Store.save();
             applyingRemote = false;
             render();
           });
@@ -641,7 +767,8 @@ function openModal(title, bodyEl) {
   h2.textContent = title;
   const closeBtn = document.createElement('button');
   closeBtn.className = 'icon-btn';
-  closeBtn.textContent = '✕';
+  closeBtn.setAttribute('aria-label', 'Close');
+  addIcon(closeBtn, 'close');
   closeBtn.addEventListener('click', closeModal);
   header.appendChild(h2);
   header.appendChild(closeBtn);
@@ -658,7 +785,153 @@ function closeModal() {
 
 /* ============================== Workspace nav ============================== */
 
+/** Workspaces pinned to the mobile tab bar. Everything else lives behind "All". */
+const PINNED_TABS = ['timetable', 'tasks', 'stats'];
+
 function renderWorkspaceNav() {
+  renderTopbar();
+  renderSidebar();
+  renderTabBar();
+  renderChipRail();
+  renderFab();
+}
+
+/** Title/subtitle reflect the workspace, so the header isn't dead space. */
+function renderTopbar() {
+  const ws = getWorkspace(currentWorkspaceId);
+  const title = document.getElementById('viewTitle');
+  const subtitle = document.getElementById('viewSubtitle');
+  title.textContent = ws ? (ws.name || 'Untitled') : 'Personal OS';
+  if (!ws) { subtitle.textContent = ''; return; }
+  if (ws.type === 'timetable') {
+    const count = Store.state.blocks.filter((b) => b.date === currentTimetableDate).length;
+    subtitle.textContent = count ? `${count} block${count === 1 ? '' : 's'} planned` : 'Nothing planned';
+  } else if (ws.type === 'stats') {
+    subtitle.textContent = 'Your last 7 days';
+  } else {
+    const all = Store.state.tasks.filter((t) => t.workspaceId === ws.id);
+    const open = all.filter((t) => !isTaskDoneToday(t)).length;
+    subtitle.textContent = all.length ? `${open} open · ${all.length} total` : 'No tasks yet';
+  }
+  // On the root element, not #app — the FAB and tab bar live outside #app and
+  // still need to pick up the workspace accent.
+  document.documentElement.setAttribute('data-ws', ws.id);
+}
+
+function renderSidebar() {
+  const side = document.getElementById('sidebar');
+  side.innerHTML = '';
+  const heading = document.createElement('div');
+  heading.className = 'sidebar-heading';
+  heading.textContent = 'Personal OS';
+  side.appendChild(heading);
+
+  Store.state.workspaces.forEach((ws) => {
+    const item = document.createElement('button');
+    item.className = 'side-item' + (ws.id === currentWorkspaceId ? ' active' : '');
+    const ic = workspaceIcon(ws);
+    if (ic) item.appendChild(ic);
+    const name = document.createElement('span');
+    name.textContent = ws.name || 'Untitled';
+    item.appendChild(name);
+    const count = workspaceBadgeCount(ws);
+    if (count) {
+      const badge = document.createElement('span');
+      badge.className = 'side-count';
+      badge.textContent = String(count);
+      item.appendChild(badge);
+    }
+    item.addEventListener('click', () => setWorkspace(ws.id));
+    side.appendChild(item);
+  });
+
+  const add = document.createElement('button');
+  add.className = 'side-item side-add';
+  addIcon(add, 'plus');
+  const addLabel = document.createElement('span');
+  addLabel.textContent = 'New workspace';
+  add.appendChild(addLabel);
+  add.addEventListener('click', openAddWorkspaceModal);
+  side.appendChild(add);
+}
+
+/** Open-item count — surfaces where the work actually is without opening each. */
+function workspaceBadgeCount(ws) {
+  if (ws.type === 'timetable') {
+    return Store.state.blocks.filter((b) => b.date === todayStr()).length;
+  }
+  if (ws.type === 'stats') return 0;
+  return Store.state.tasks.filter((t) => t.workspaceId === ws.id && !isTaskDoneToday(t)).length;
+}
+
+function renderTabBar() {
+  const bar = document.getElementById('tabbar');
+  bar.innerHTML = '';
+  const pinned = PINNED_TABS.map((id) => getWorkspace(id)).filter(Boolean);
+  const onPinned = pinned.some((w) => w.id === currentWorkspaceId);
+
+  const makeTab = (ws) => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (ws.id === currentWorkspaceId ? ' active' : '');
+    const ic = workspaceIcon(ws);
+    if (ic) btn.appendChild(ic);
+    const label = document.createElement('span');
+    label.textContent = ws.name || 'Untitled';
+    btn.appendChild(label);
+    btn.addEventListener('click', () => setWorkspace(ws.id));
+    return btn;
+  };
+
+  // Two tabs, the FAB's reserved slot, then the rest — the classic thumb layout.
+  pinned.slice(0, 2).forEach((ws) => bar.appendChild(makeTab(ws)));
+  const spacer = document.createElement('div');
+  spacer.className = 'tab-spacer';
+  bar.appendChild(spacer);
+  pinned.slice(2).forEach((ws) => bar.appendChild(makeTab(ws)));
+
+  const all = document.createElement('button');
+  // When the user is in a non-pinned workspace, "All" carries the active state
+  // and its name — otherwise nothing in the bar would look selected.
+  all.className = 'tab-btn' + (onPinned ? '' : ' active');
+  addIcon(all, 'grid');
+  const allLabel = document.createElement('span');
+  const currentWs = getWorkspace(currentWorkspaceId);
+  allLabel.textContent = onPinned || !currentWs ? 'All' : (currentWs.name || 'All');
+  all.appendChild(allLabel);
+  all.addEventListener('click', openWorkspaceSheet);
+  bar.appendChild(all);
+}
+
+/** Grid of every workspace — the mobile counterpart to the desktop sidebar. */
+function openWorkspaceSheet() {
+  const body = document.createElement('div');
+  const grid = document.createElement('div');
+  grid.className = 'ws-grid';
+  Store.state.workspaces.forEach((ws) => {
+    const tile = document.createElement('button');
+    tile.className = 'ws-tile' + (ws.id === currentWorkspaceId ? ' active' : '');
+    const ic = workspaceIcon(ws);
+    if (ic) tile.appendChild(ic);
+    const name = document.createElement('span');
+    name.textContent = ws.name || 'Untitled';
+    tile.appendChild(name);
+    tile.addEventListener('click', () => { closeModal(); setWorkspace(ws.id); });
+    grid.appendChild(tile);
+  });
+  const add = document.createElement('button');
+  add.className = 'ws-tile ws-add';
+  addIcon(add, 'plus');
+  const addLabel = document.createElement('span');
+  addLabel.textContent = 'New';
+  add.appendChild(addLabel);
+  add.addEventListener('click', () => { closeModal(); openAddWorkspaceModal(); });
+  grid.appendChild(add);
+  body.appendChild(grid);
+  openModal('Workspaces', body);
+}
+
+/** Narrow-screen chip rail above the content (hidden once the sidebar shows). */
+function renderChipRail() {
   const nav = document.getElementById('workspaceNav');
   nav.innerHTML = '';
   let activeChip = null;
@@ -666,18 +939,44 @@ function renderWorkspaceNav() {
     const chip = document.createElement('button');
     const isActive = ws.id === currentWorkspaceId;
     chip.className = 'ws-chip' + (isActive ? ' active' : '');
-    chip.innerHTML = `<span>${escapeHtml(ws.icon || '📁')}</span><span>${escapeHtml(ws.name || 'Untitled')}</span>`;
+    const ic = workspaceIcon(ws);
+    if (ic) chip.appendChild(ic);
+    const name = document.createElement('span');
+    name.textContent = ws.name || 'Untitled';
+    chip.appendChild(name);
     chip.addEventListener('click', () => setWorkspace(ws.id));
     nav.appendChild(chip);
     if (isActive) activeChip = chip;
   });
   const addChip = document.createElement('button');
   addChip.className = 'ws-chip ws-add';
-  addChip.textContent = '+ Workspace';
+  addIcon(addChip, 'plus');
+  addChip.setAttribute('aria-label', 'New workspace');
   addChip.addEventListener('click', openAddWorkspaceModal);
   nav.appendChild(addChip);
   if (activeChip) activeChip.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
   updateNavScrollFade(nav);
+}
+
+/** One primary action per workspace, always in thumb reach. */
+function renderFab() {
+  const fab = document.getElementById('fab');
+  const ws = getWorkspace(currentWorkspaceId);
+  if (!ws || ws.type === 'stats') { fab.hidden = true; return; }
+  fab.hidden = false;
+  fab.innerHTML = '';
+  addIcon(fab, 'plus');
+  fab.setAttribute('aria-label', ws.type === 'timetable' ? 'Add block' : `Add task in ${ws.name}`);
+  fab.onclick = () => {
+    if (ws.type === 'timetable') { openBlockModal(null); return; }
+    const quick = document.querySelector('.quick-add');
+    const input = quick && quick.querySelector('input[type="text"]');
+    if (input) {
+      quick.classList.add('expanded');
+      input.focus();
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
 }
 
 function updateNavScrollFade(nav) {
@@ -739,9 +1038,10 @@ function buildTaskDetailsSection(task) {
 
   const toggle = document.createElement('button');
   toggle.type = 'button';
-  toggle.className = 'details-toggle';
   const hasDetails = task && (task.priority || task.dueDate || (task.recurrence && task.recurrence !== 'none'));
-  toggle.textContent = hasDetails ? '– Priority, due date, repeat' : '+ Priority, due date, repeat';
+  toggle.className = 'details-toggle' + (hasDetails ? ' open' : '');
+  addIcon(toggle, 'chevronRight');
+  toggle.appendChild(document.createTextNode('Priority, due date, repeat'));
 
   const box = document.createElement('div');
   box.className = 'details-box';
@@ -750,7 +1050,7 @@ function buildTaskDetailsSection(task) {
   toggle.addEventListener('click', () => {
     const showing = box.style.display !== 'none';
     box.style.display = showing ? 'none' : 'flex';
-    toggle.textContent = showing ? '+ Priority, due date, repeat' : '– Priority, due date, repeat';
+    toggle.classList.toggle('open', !showing);
   });
 
   const state = {
@@ -822,13 +1122,30 @@ function renderTaskWorkspaceView(ws) {
     container.appendChild(renderContestSection());
   }
 
+  // Quick-add stays a single line until focused, so the workspace opens on the
+  // list rather than on a tall form.
   const form = document.createElement('form');
-  form.className = 'add-task-form';
+  form.className = 'quick-add';
+
+  const row = document.createElement('div');
+  row.className = 'quick-add-row';
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
   titleInput.required = true;
-  titleInput.placeholder = `Add a task in ${ws.name}...`;
-  form.appendChild(titleInput);
+  titleInput.placeholder = `Add to ${ws.name}...`;
+  titleInput.addEventListener('focus', () => form.classList.add('expanded'));
+  row.appendChild(titleInput);
+
+  const submitBtn = document.createElement('button');
+  submitBtn.type = 'submit';
+  submitBtn.className = 'quick-add-submit';
+  submitBtn.setAttribute('aria-label', 'Add task');
+  addIcon(submitBtn, 'plus');
+  row.appendChild(submitBtn);
+  form.appendChild(row);
+
+  const extra = document.createElement('div');
+  extra.className = 'quick-add-extra';
 
   const labelPicker = document.createElement('div');
   labelPicker.className = 'label-picker';
@@ -844,16 +1161,20 @@ function renderTaskWorkspaceView(ws) {
     });
     labelPicker.appendChild(chip);
   });
-  form.appendChild(labelPicker);
+  extra.appendChild(labelPicker);
 
   const details = buildTaskDetailsSection(null);
-  form.appendChild(details.el);
+  extra.appendChild(details.el);
+  form.appendChild(extra);
 
-  const submitBtn = document.createElement('button');
-  submitBtn.type = 'submit';
-  submitBtn.className = 'btn-primary';
-  submitBtn.textContent = 'Add task';
-  form.appendChild(submitBtn);
+  // Collapse again when focus leaves the whole form and nothing is typed.
+  form.addEventListener('focusout', () => {
+    setTimeout(() => {
+      if (!form.contains(document.activeElement) && !titleInput.value.trim()) {
+        form.classList.remove('expanded');
+      }
+    }, 0);
+  });
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -878,14 +1199,12 @@ function renderTaskWorkspaceView(ws) {
     });
     filterRow.appendChild(chip);
   });
-  container.appendChild(filterRow);
 
+  // Sort sits on the same row as the filters — it was a whole row to itself.
   const sortRow = document.createElement('div');
   sortRow.className = 'sort-row';
-  const sortLabel = document.createElement('span');
-  sortLabel.className = 'sort-label';
-  sortLabel.textContent = 'Sort';
   const sortSelect = document.createElement('select');
+  sortSelect.setAttribute('aria-label', 'Sort tasks');
   const activeSort = currentTaskSort[ws.id] || 'recent';
   [['recent', 'Recent'], ['priority', 'Priority'], ['due', 'Due date']].forEach(([val, text]) => {
     const opt = document.createElement('option');
@@ -895,9 +1214,15 @@ function renderTaskWorkspaceView(ws) {
     sortSelect.appendChild(opt);
   });
   sortSelect.addEventListener('change', () => { currentTaskSort[ws.id] = sortSelect.value; render(); });
-  sortRow.appendChild(sortLabel);
   sortRow.appendChild(sortSelect);
-  container.appendChild(sortRow);
+
+  // Chips scroll; sort is pinned outside the scroll container so it can't be
+  // pushed off-screen by a long label list.
+  const controls = document.createElement('div');
+  controls.className = 'list-controls';
+  controls.appendChild(filterRow);
+  controls.appendChild(sortRow);
+  container.appendChild(controls);
 
   const list = document.createElement('div');
   list.className = 'task-list';
@@ -912,10 +1237,12 @@ function renderTaskWorkspaceView(ws) {
   });
 
   if (tasks.length === 0) {
-    const empty = document.createElement('p');
-    empty.className = 'empty-state';
-    empty.textContent = 'No tasks yet.';
-    list.appendChild(empty);
+    list.appendChild(buildEmptyState(
+      'checkSquare',
+      activeFilter
+        ? `Nothing labelled "${activeFilter}" here.`
+        : 'No tasks yet.\nAdd one above, or tap +.',
+    ));
   } else {
     tasks.forEach((t) => list.appendChild(renderTaskRow(t)));
   }
@@ -962,17 +1289,22 @@ function renderTaskRow(t) {
   }
   main.appendChild(titleRow);
 
-  const metaBits = [];
   const dueLabel = formatDueLabel(t);
-  if (dueLabel) metaBits.push(`Due ${dueLabel}`);
-  if (isRecurring) {
-    const streak = taskStreak(t);
-    metaBits.push((t.recurrence === 'daily' ? 'Daily' : 'Weekly') + (streak > 0 ? ` · 🔥${streak}` : ''));
-  }
-  if (metaBits.length) {
+  const streak = isRecurring ? taskStreak(t) : 0;
+  if (dueLabel || isRecurring) {
     const meta = document.createElement('div');
     meta.className = 'task-meta';
-    meta.textContent = metaBits.join(' · ');
+    const bits = [];
+    if (dueLabel) bits.push(`Due ${dueLabel}`);
+    if (isRecurring) bits.push(t.recurrence === 'daily' ? 'Daily' : 'Weekly');
+    meta.appendChild(document.createTextNode(bits.join(' · ')));
+    if (streak > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'streak-badge';
+      addIcon(badge, 'flame');
+      badge.appendChild(document.createTextNode(String(streak)));
+      meta.appendChild(badge);
+    }
     main.appendChild(meta);
   }
 
@@ -991,8 +1323,9 @@ function renderTaskRow(t) {
   row.appendChild(main);
 
   const delBtn = document.createElement('button');
-  delBtn.className = 'icon-btn small';
-  delBtn.textContent = '✕';
+  delBtn.className = 'icon-btn tiny';
+  delBtn.setAttribute('aria-label', 'Delete task');
+  addIcon(delBtn, 'close');
   delBtn.addEventListener('click', () => { if (confirm('Delete this task?')) { deleteTask(t.id); render(); } });
   row.appendChild(delBtn);
 
@@ -1086,16 +1419,22 @@ function renderTimetableView() {
 
   const prevBtn = document.createElement('button');
   prevBtn.className = 'icon-btn';
-  prevBtn.textContent = '‹';
+  prevBtn.setAttribute('aria-label', 'Previous day');
+  addIcon(prevBtn, 'chevronLeft');
   prevBtn.addEventListener('click', () => { currentTimetableDate = addDaysStr(currentTimetableDate, -1); render(); });
 
   const dateLabel = document.createElement('div');
   dateLabel.className = 'date-label';
-  dateLabel.innerHTML = `<div class="date-main">${escapeHtml(formatDateLabel(currentTimetableDate))}</div><div class="date-sub">${currentTimetableDate}</div>`;
+  dateLabel.innerHTML = `<div class="date-main">${escapeHtml(formatDateLabel(currentTimetableDate))}</div><div class="date-sub">${escapeHtml(currentTimetableDate)}</div>`;
+  // Tapping the date jumps back to today — the common case after browsing ahead.
+  dateLabel.style.cursor = 'pointer';
+  dateLabel.title = 'Jump to today';
+  dateLabel.addEventListener('click', () => { currentTimetableDate = todayStr(); render(); });
 
   const nextBtn = document.createElement('button');
   nextBtn.className = 'icon-btn';
-  nextBtn.textContent = '›';
+  nextBtn.setAttribute('aria-label', 'Next day');
+  addIcon(nextBtn, 'chevronRight');
   nextBtn.addEventListener('click', () => { currentTimetableDate = addDaysStr(currentTimetableDate, 1); render(); });
 
   switcher.appendChild(prevBtn);
@@ -1103,17 +1442,20 @@ function renderTimetableView() {
   switcher.appendChild(nextBtn);
   container.appendChild(switcher);
 
+  const blocks = Store.state.blocks
+    .filter((b) => b.date === currentTimetableDate)
+    .sort((a, b) => String(a.start).localeCompare(String(b.start)));
+
+  const isToday = currentTimetableDate === todayStr();
+  if (isToday && blocks.length) container.appendChild(renderNowCard(blocks));
+
   const actions = document.createElement('div');
   actions.className = 'action-row';
 
-  const addBtn = document.createElement('button');
-  addBtn.className = 'btn-secondary';
-  addBtn.textContent = '+ Add block';
-  addBtn.addEventListener('click', () => openBlockModal(null));
-
   const loadBtn = document.createElement('button');
   loadBtn.className = 'btn-outline';
-  loadBtn.textContent = 'Load template';
+  addIcon(loadBtn, 'inbox');
+  loadBtn.appendChild(document.createTextNode('Load template'));
   loadBtn.addEventListener('click', () => loadTemplateIntoDay(currentTimetableDate));
 
   const saveBtn = document.createElement('button');
@@ -1121,28 +1463,156 @@ function renderTimetableView() {
   saveBtn.textContent = 'Save as template';
   saveBtn.addEventListener('click', () => saveDayAsTemplate(currentTimetableDate));
 
-  actions.appendChild(addBtn);
   actions.appendChild(loadBtn);
   actions.appendChild(saveBtn);
   container.appendChild(actions);
 
-  const list = document.createElement('div');
-  list.className = 'block-list';
-  const blocks = Store.state.blocks
-    .filter((b) => b.date === currentTimetableDate)
-    .sort((a, b) => a.start.localeCompare(b.start));
-
   if (blocks.length === 0) {
-    const empty = document.createElement('p');
-    empty.className = 'empty-state';
-    empty.textContent = 'Nothing planned. Tap "Add block" to start, or load your template.';
-    list.appendChild(empty);
-  } else {
-    blocks.forEach((b) => list.appendChild(renderBlockCard(b)));
+    container.appendChild(buildEmptyState(
+      'calendar',
+      'Nothing planned yet.\nTap + to add a block, or load your saved template.',
+    ));
+    return container;
   }
-  container.appendChild(list);
 
+  container.appendChild(renderTimeline(blocks, isToday));
   return container;
+}
+
+/** What's happening right now, and what's next — the reason to open the app. */
+function renderNowCard(blocks) {
+  const now = nowMinutes();
+  const current = blocks.find((b) => {
+    const s = minutesOf(b.start);
+    const e = minutesOf(b.end);
+    return Number.isFinite(s) && Number.isFinite(e) && now >= s && now < e;
+  });
+  const next = blocks.find((b) => minutesOf(b.start) > now);
+
+  const card = document.createElement('div');
+  card.className = 'now-card' + (current ? '' : ' is-idle');
+
+  const kicker = document.createElement('div');
+  kicker.className = 'now-kicker';
+  const pulse = document.createElement('span');
+  pulse.className = 'now-pulse';
+  kicker.appendChild(pulse);
+  kicker.appendChild(document.createTextNode(current ? 'Now' : 'Free right now'));
+  card.appendChild(kicker);
+
+  const title = document.createElement('div');
+  title.className = 'now-title';
+
+  if (current) {
+    title.textContent = current.title;
+    card.appendChild(title);
+
+    const start = minutesOf(current.start);
+    const end = minutesOf(current.end);
+    const meta = document.createElement('div');
+    meta.className = 'now-meta';
+    meta.textContent = `${formatTime12(current.start)} – ${formatTime12(current.end)} · `
+      + `${formatDuration(end - now)} left`;
+    card.appendChild(meta);
+
+    const track = document.createElement('div');
+    track.className = 'now-progress';
+    const fill = document.createElement('div');
+    fill.className = 'now-progress-fill';
+    const pct = end > start ? ((now - start) / (end - start)) * 100 : 0;
+    fill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+    track.appendChild(fill);
+    card.appendChild(track);
+
+    const doneSubs = current.subtasks.filter((s) => s.done).length;
+    if (current.subtasks.length) {
+      const subs = document.createElement('div');
+      subs.className = 'now-next';
+      subs.textContent = `${doneSubs}/${current.subtasks.length} subtasks done`;
+      card.appendChild(subs);
+    }
+  } else {
+    title.textContent = next ? 'Nothing scheduled right now' : 'Day complete';
+    card.appendChild(title);
+  }
+
+  if (next) {
+    const nextEl = document.createElement('div');
+    nextEl.className = 'now-next';
+    const label = document.createElement('span');
+    label.textContent = 'Next';
+    const b = document.createElement('b');
+    b.textContent = next.title;
+    const when = document.createElement('span');
+    when.textContent = `· ${formatTime12(next.start)}`;
+    nextEl.appendChild(label);
+    nextEl.appendChild(b);
+    nextEl.appendChild(when);
+    card.appendChild(nextEl);
+  }
+
+  return card;
+}
+
+/** Blocks on a time rail: past dimmed, current highlighted, gaps called out. */
+function renderTimeline(blocks, isToday) {
+  const now = nowMinutes();
+  const timeline = document.createElement('div');
+  timeline.className = 'timeline';
+
+  blocks.forEach((b, i) => {
+    const start = minutesOf(b.start);
+    const end = minutesOf(b.end);
+
+    const item = document.createElement('div');
+    item.className = 'tl-item';
+    if (isToday && Number.isFinite(end)) {
+      if (now >= start && now < end) item.classList.add('is-now');
+      else if (now >= end) item.classList.add('is-past');
+    }
+
+    const time = document.createElement('div');
+    time.className = 'tl-time';
+    time.textContent = formatTime12(b.start).replace(' ', ' ');
+    const dur = document.createElement('small');
+    dur.textContent = formatDuration(end - start);
+    time.appendChild(dur);
+    item.appendChild(time);
+
+    const dot = document.createElement('div');
+    dot.className = 'tl-dot';
+    item.appendChild(dot);
+
+    item.appendChild(renderBlockCard(b));
+    timeline.appendChild(item);
+
+    // Call out any gap over 20 minutes — unplanned time is the thing worth seeing.
+    const nextBlock = blocks[i + 1];
+    if (nextBlock) {
+      const gap = minutesOf(nextBlock.start) - end;
+      if (Number.isFinite(gap) && gap >= 20) {
+        const gapEl = document.createElement('div');
+        gapEl.className = 'tl-gap';
+        gapEl.textContent = `${formatDuration(gap)} free`;
+        timeline.appendChild(gapEl);
+      }
+    }
+  });
+
+  return timeline;
+}
+
+/** Shared empty state: icon + message (newlines become line breaks). */
+function buildEmptyState(iconName, message) {
+  const el = document.createElement('div');
+  el.className = 'empty-state';
+  const ic = icon(iconName);
+  if (ic) el.appendChild(ic);
+  message.split('\n').forEach((line, i) => {
+    if (i) el.appendChild(document.createElement('br'));
+    el.appendChild(document.createTextNode(line));
+  });
+  return el;
 }
 
 function renderBlockCard(b) {
@@ -1152,22 +1622,24 @@ function renderBlockCard(b) {
   const header = document.createElement('div');
   header.className = 'block-header';
 
-  const time = document.createElement('div');
-  time.className = 'block-time';
-  time.textContent = `${b.start} – ${b.end}`;
-  header.appendChild(time);
-
   const titleRow = document.createElement('div');
   titleRow.className = 'block-title-row';
   const titleEl = document.createElement('div');
   titleEl.className = 'block-title';
   titleEl.textContent = b.title;
   titleRow.appendChild(titleEl);
+
+  const durationEl = document.createElement('div');
+  durationEl.className = 'block-duration';
+  durationEl.textContent = `${formatTime12(b.start)} – ${formatTime12(b.end)}`;
+  titleRow.appendChild(durationEl);
+
   const linkedTask = b.taskId ? Store.state.tasks.find((t) => t.id === b.taskId) : null;
   if (linkedTask) {
     const badge = document.createElement('div');
     badge.className = 'linked-badge';
-    badge.textContent = `from: ${linkedTask.title}`;
+    addIcon(badge, 'link');
+    badge.appendChild(document.createTextNode(linkedTask.title));
     titleRow.appendChild(badge);
   }
   header.appendChild(titleRow);
@@ -1175,12 +1647,14 @@ function renderBlockCard(b) {
   const actionsEl = document.createElement('div');
   actionsEl.className = 'block-actions';
   const editBtn = document.createElement('button');
-  editBtn.className = 'icon-btn small';
-  editBtn.textContent = '✎';
+  editBtn.className = 'icon-btn small ghost';
+  editBtn.setAttribute('aria-label', 'Edit block');
+  addIcon(editBtn, 'pencil');
   editBtn.addEventListener('click', () => openBlockModal(b));
   const delBtn = document.createElement('button');
-  delBtn.className = 'icon-btn small';
-  delBtn.textContent = '✕';
+  delBtn.className = 'icon-btn small ghost';
+  delBtn.setAttribute('aria-label', 'Delete block');
+  addIcon(delBtn, 'close');
   delBtn.addEventListener('click', () => { if (confirm('Delete this block?')) { deleteBlock(b.id); render(); } });
   actionsEl.appendChild(editBtn);
   actionsEl.appendChild(delBtn);
@@ -1202,7 +1676,8 @@ function renderBlockCard(b) {
     label.textContent = st.title;
     const del = document.createElement('button');
     del.className = 'icon-btn tiny';
-    del.textContent = '✕';
+    del.setAttribute('aria-label', 'Delete subtask');
+    addIcon(del, 'close');
     del.addEventListener('click', () => { deleteSubtask(b.id, st.id); render(); });
     row.appendChild(check);
     row.appendChild(label);
@@ -1216,11 +1691,12 @@ function renderBlockCard(b) {
   const subInput = document.createElement('input');
   subInput.type = 'text';
   subInput.className = 'subtask-input';
-  subInput.placeholder = 'Add a subtask for this block...';
+  subInput.placeholder = 'Add a subtask...';
   const subBtn = document.createElement('button');
   subBtn.type = 'submit';
   subBtn.className = 'btn-mini';
-  subBtn.textContent = '+';
+  subBtn.setAttribute('aria-label', 'Add subtask');
+  addIcon(subBtn, 'plus');
   subForm.appendChild(subInput);
   subForm.appendChild(subBtn);
   subForm.addEventListener('submit', (e) => {
@@ -1361,13 +1837,15 @@ function buildStatTile(label, value) {
   return tile;
 }
 
-function buildProgressRow(label, valueText, pct) {
+function buildProgressRow(label, valueText, pct, iconEl) {
   const row = document.createElement('div');
   row.className = 'progress-row';
   const top = document.createElement('div');
   top.className = 'progress-row-top';
   const labelEl = document.createElement('span');
-  labelEl.textContent = label;
+  labelEl.className = 'progress-row-label';
+  if (iconEl) labelEl.appendChild(iconEl);
+  labelEl.appendChild(document.createTextNode(label));
   const valueEl = document.createElement('span');
   valueEl.className = 'hint';
   valueEl.textContent = valueText;
@@ -1428,9 +1906,10 @@ function renderStatsView() {
     const wsDone = wsTasks.filter((t) => isTaskDoneToday(t)).length;
     const pct = wsTasks.length ? Math.round((wsDone / wsTasks.length) * 100) : 0;
     wsSection.appendChild(buildProgressRow(
-      `${ws.icon || '📁'} ${ws.name}`,
+      ws.name,
       wsTasks.length ? `${wsDone}/${wsTasks.length}` : 'No tasks',
       pct,
+      workspaceIcon(ws),
     ));
   });
   container.appendChild(wsSection);
@@ -1445,10 +1924,10 @@ function renderStatsView() {
     .map((t) => ({ t, streak: taskStreak(t) }))
     .sort((a, b) => b.streak - a.streak);
   if (!recurringTasks.length) {
-    const p = document.createElement('p');
-    p.className = 'empty-state';
-    p.textContent = 'No recurring tasks yet — set a task to repeat Daily or Weekly to build a streak.';
-    streakSection.appendChild(p);
+    streakSection.appendChild(buildEmptyState(
+      'flame',
+      'No streaks yet.\nSet a task to repeat Daily or Weekly to start one.',
+    ));
   } else {
     recurringTasks.forEach(({ t, streak }) => {
       const row = document.createElement('div');
@@ -1462,7 +1941,13 @@ function renderStatsView() {
       left.appendChild(wsTag);
       const right = document.createElement('span');
       right.className = 'streak-count';
-      right.textContent = streak > 0 ? `🔥 ${streak}` : '—';
+      if (streak > 0) {
+        addIcon(right, 'flame');
+        right.appendChild(document.createTextNode(String(streak)));
+      } else {
+        right.textContent = '—';
+        right.style.color = 'var(--text-faint)';
+      }
       row.appendChild(left);
       row.appendChild(right);
       streakSection.appendChild(row);
@@ -1503,10 +1988,7 @@ function openSearchModal() {
     results.innerHTML = '';
     const q = query.trim().toLowerCase();
     if (!q) {
-      const p = document.createElement('p');
-      p.className = 'empty-state';
-      p.textContent = 'Start typing to search across every workspace.';
-      results.appendChild(p);
+      results.appendChild(buildEmptyState('search', 'Start typing to search across every workspace.'));
       return;
     }
     const taskMatches = Store.state.tasks.filter(
@@ -1598,7 +2080,12 @@ function buildSyncSection() {
   if (currentUser) {
     const status = document.createElement('p');
     status.className = 'hint';
-    status.textContent = `Signed in as ${currentUser.email}. Synced across every device signed into this account.`;
+    let when = 'No changes pushed yet this session.';
+    if (lastSyncedAt) {
+      when = `Last synced ${new Date(lastSyncedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}.`;
+    }
+    status.textContent = `Signed in as ${currentUser.email}. ${when} `
+      + 'Every device signed into this account stays in step.';
     section.appendChild(status);
     if (lastSyncError) {
       const err = document.createElement('p');
@@ -1742,8 +2229,9 @@ function openSettingsModal() {
     if (alarm.id !== 'plan-tomorrow') {
       const delBtn = document.createElement('button');
       delBtn.type = 'button';
-      delBtn.className = 'icon-btn small';
-      delBtn.textContent = '✕';
+      delBtn.className = 'icon-btn tiny';
+      delBtn.setAttribute('aria-label', 'Delete alarm');
+      addIcon(delBtn, 'close');
       delBtn.addEventListener('click', () => {
         Store.state.settings.alarms = Store.state.settings.alarms.filter((a) => a.id !== alarm.id);
         Store.save();
@@ -1948,10 +2436,27 @@ function renderNudgeBanner() {
   const planned = Store.state.blocks.some((b) => b.date === tomorrow);
   if (planned) {
     el.style.display = 'none';
-  } else {
-    el.style.display = 'flex';
-    el.textContent = "Tomorrow's timetable isn't planned yet — open the Timetable workspace.";
+    return;
   }
+  el.style.display = 'flex';
+  el.innerHTML = '';
+  const ws = getWorkspace(currentWorkspaceId);
+  const alreadyHere = ws && ws.type === 'timetable' && currentTimetableDate === tomorrow;
+  if (alreadyHere) {
+    el.appendChild(document.createTextNode("Tomorrow isn't planned yet — add your first block."));
+    return;
+  }
+  el.appendChild(document.createTextNode("Tomorrow's timetable isn't planned yet."));
+  // Telling the user to "open the Timetable workspace" is a worse affordance
+  // than just taking them there.
+  const go = document.createElement('button');
+  go.className = 'btn-mini';
+  go.textContent = 'Plan it';
+  go.addEventListener('click', () => {
+    currentTimetableDate = tomorrow;
+    setWorkspace('timetable');
+  });
+  el.appendChild(go);
 }
 
 /* ============================== Root render ============================== */
@@ -2028,9 +2533,19 @@ function renderErrorState(content, err) {
 document.addEventListener('DOMContentLoaded', () => {
   Store.load();
   applyTheme();
-  document.getElementById('settingsBtn').addEventListener('click', openSettingsModal);
-  document.getElementById('searchBtn').addEventListener('click', openSearchModal);
+  const settingsBtn = document.getElementById('settingsBtn');
+  const searchBtn = document.getElementById('searchBtn');
+  addIcon(searchBtn, 'search');
+  addIcon(settingsBtn, 'settings');
+  settingsBtn.addEventListener('click', openSettingsModal);
+  searchBtn.addEventListener('click', openSearchModal);
   render();
+  // The "Now" card and past/current block styling are time-dependent, so the
+  // timetable has to re-render as the day moves even if nothing is touched.
+  setInterval(() => {
+    const ws = getWorkspace(currentWorkspaceId);
+    if (ws && ws.type === 'timetable' && !document.getElementById('modalRoot').firstChild) render();
+  }, 60000);
   startReminderLoop();
   initSync();
   if ('serviceWorker' in navigator) {

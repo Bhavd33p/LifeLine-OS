@@ -1,9 +1,12 @@
-const CACHE_NAME = 'personal-os-v5';
+const CACHE_NAME = 'personal-os-v6';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './icons.js',
+  './sync.js',
+  './firebase-config.js',
   './manifest.json',
 ];
 
