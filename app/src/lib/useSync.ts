@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { getState, replaceState, setAfterSave } from './store';
 import {
-  firebaseReady, onAuthChange, pushState, stopWatchingUserDoc, watchUserDoc,
+  ensurePersistentStorage, firebaseReady, onAuthChange, pushState, stopWatchingUserDoc,
+  watchUserDoc, type StorageDurability,
 } from './sync';
 
 const REMOTE_SNAPSHOT_KEY = 'personalOS.lastRemoteSnapshot';
@@ -27,15 +28,24 @@ export interface SyncStatus {
   error: string | null;
   syncedAt: number | null;
   conflict: any | null;
+  /** Whether the browser has promised not to evict this app's storage. */
+  storage: StorageDurability | 'unknown';
 }
 
 export function useSync() {
   const [status, setStatus] = useState<SyncStatus>({
-    user: null, error: null, syncedAt: null, conflict: null,
+    user: null, error: null, syncedAt: null, conflict: null, storage: 'unknown',
   });
   const applying = useRef(false);
   const userRef = useRef<any>(null);
   const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    // Asked every launch, not once: a browser that refused before may grant it
+    // after the app is installed to the home screen, and being evicted is what
+    // signs you out and takes the local data with it.
+    ensurePersistentStorage().then((storage) => setStatus((s) => ({ ...s, storage })));
+  }, []);
 
   useEffect(() => {
     if (!firebaseReady) return;

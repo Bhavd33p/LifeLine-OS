@@ -69,6 +69,7 @@ export function SettingsDialog({ onClose, sync, uploadNow }: {
                   : 'No changes pushed yet this session.'}
               </p>
               {sync.error && <p className="text-sm font-medium text-destructive">Last sync error: {sync.error}</p>}
+              <StorageNote durability={sync.storage} />
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" onClick={() => {
                   const s = getState();
@@ -143,6 +144,30 @@ export function SettingsDialog({ onClose, sync, uploadNow }: {
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * Staying signed in is really a question of whether the browser keeps this
+ * app's storage. Saying so beats letting someone conclude the sign-in is broken.
+ */
+function StorageNote({ durability }: { durability: SyncStatus['storage'] }) {
+  if (durability === 'persisted') {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Storage is marked persistent, so this device stays signed in until you sign out.
+      </p>
+    );
+  }
+  if (durability === 'best-effort' || durability === 'unsupported') {
+    return (
+      <p className="text-xs text-muted-foreground">
+        This browser hasn't promised to keep the app's storage, so it may sign you out
+        if you don't open the app for a week or so. Adding it to your home screen
+        (Safari → Share → Add to Home Screen) and opening it from there usually fixes that.
+      </p>
+    );
+  }
+  return null;
 }
 
 function Alarms() {
