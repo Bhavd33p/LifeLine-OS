@@ -15,7 +15,9 @@ import {
   addBlock, addRepeatingBlocks, deleteBlock, isTaskDoneToday, priorityOf, updateBlock,
   useStore, weekdayOf,
 } from '@/lib/store';
-import { formatDateLabel, formatDuration, formatTime12, minutesOf } from '@/lib/date';
+import {
+  addMinutesStr, formatDateLabel, formatDuration, formatTime12, minutesOf, nowTimeStr,
+} from '@/lib/date';
 import type { Block } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -23,6 +25,7 @@ type RepeatMode = 'none' | 'daily' | 'weekdays' | 'weekends' | 'custom';
 
 const WEEKDAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const FULL_WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DEFAULT_LENGTH_MINUTES = 120;
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 const WEEKDAYS = [0, 1, 2, 3, 4];
 const WEEKENDS = [5, 6];
@@ -33,8 +36,14 @@ export function BlockDialog({ date, block, onClose }: {
   const tasks = useStore((s) => s.tasks);
   const workspaces = useStore((s) => s.workspaces);
   const [title, setTitle] = useState(block?.title ?? '');
-  const [start, setStart] = useState(block?.start ?? '09:00');
-  const [end, setEnd] = useState(block?.end ?? '10:00');
+  // A new block starts now and runs two hours. Read once so the two fields
+  // cannot straddle a minute boundary and come out a minute apart.
+  const [defaults] = useState(() => {
+    const from = nowTimeStr();
+    return { start: from, end: addMinutesStr(from, DEFAULT_LENGTH_MINUTES) };
+  });
+  const [start, setStart] = useState(block?.start ?? defaults.start);
+  const [end, setEnd] = useState(block?.end ?? defaults.end);
   const [taskIds, setTaskIds] = useState<string[]>(block?.taskIds ?? []);
   const [taskQuery, setTaskQuery] = useState('');
   const [reminder, setReminder] = useState(block?.reminder ?? false);
@@ -70,6 +79,16 @@ export function BlockDialog({ date, block, onClose }: {
   // midnight. Say so plainly while they type.
   const crossesMidnight = Number.isFinite(sMin) && Number.isFinite(eMin) && eMin < sMin;
   const length = crossesMidnight ? eMin + 1440 - sMin : eMin - sMin;
+
+  /**
+   * Moving the start carries the end with it, keeping the length. Without this
+   * a start pushed past a fixed end reads as a block running to that time
+   * tomorrow -- a silent 23-hour block rather than the two-hour one intended.
+   */
+  const changeStart = (next: string) => {
+    setStart(next);
+    if (length > 0) setEnd(addMinutesStr(next, length));
+  };
 
   const toggleTask = (id: string) =>
     setTaskIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
@@ -130,7 +149,7 @@ export function BlockDialog({ date, block, onClose }: {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Input aria-label="Start" id="block-start" type="time" required value={start}
-                onChange={(e) => setStart(e.target.value)} />
+                onChange={(e) => changeStart(e.target.value)} />
               <Input aria-label="End" id="block-end" type="time" required value={end}
                 onChange={(e) => setEnd(e.target.value)} />
             </div>

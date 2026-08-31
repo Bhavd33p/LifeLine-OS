@@ -40,6 +40,20 @@ export function minutesOf(hhmm: string) {
   return h * 60 + m;
 }
 
+/** 'HH:MM' for right now. */
+export function nowTimeStr() {
+  const d = new Date();
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+/** Adds minutes to an 'HH:MM', wrapping around midnight. */
+export function addMinutesStr(hhmm: string, delta: number) {
+  const m = minutesOf(hhmm);
+  if (!Number.isFinite(m)) return hhmm;
+  const next = (((m + delta) % 1440) + 1440) % 1440;
+  return `${pad2(Math.floor(next / 60))}:${pad2(next % 60)}`;
+}
+
 export function nowMinutes() {
   const d = new Date();
   return d.getHours() * 60 + d.getMinutes();
