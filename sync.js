@@ -62,14 +62,23 @@ export async function signOutUser() {
   return authApi.signOut(auth);
 }
 
-export async function watchUserDoc(uid, onRemoteChange) {
+/**
+ * Watches the user's cloud document.
+ *
+ * `onRemoteChange(data)` fires with the document's contents, or with null ONLY
+ * when the document genuinely does not exist yet. A listener failure goes to
+ * `onError` instead and never to `onRemoteChange` -- reporting an error as an
+ * empty cloud previously caused the caller to "seed" the cloud from this
+ * device, overwriting whatever another device had already put there.
+ */
+export async function watchUserDoc(uid, onRemoteChange, onError) {
   await ensureInitialized();
   stopWatchingUserDoc();
   docRef = firestoreApi.doc(db, 'users', uid);
   unsubscribeDoc = firestoreApi.onSnapshot(
     docRef,
     (snap) => onRemoteChange(snap.exists() ? snap.data() : null),
-    () => onRemoteChange(null),
+    (err) => { if (onError) onError(err); },
   );
 }
 

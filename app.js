@@ -582,6 +582,35 @@ let pushTimer = null;
 let lastSyncError = null;
 let lastSyncedAt = null;
 
+const REMOTE_SNAPSHOT_KEY = 'personalOS.lastRemoteSnapshot';
+
+/**
+ * Stashes the cloud copy before this device replaces anything, so a bad
+ * overwrite stays recoverable from Settings instead of being gone for good.
+ */
+function readRemoteSnapshot() {
+  try {
+    const raw = localStorage.getItem(REMOTE_SNAPSHOT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || !parsed.state) return null;
+    return parsed;
+  } catch (e) {
+    return null;
+  }
+}
+
+function stashRemoteSnapshot(remoteData) {
+  try {
+    localStorage.setItem(REMOTE_SNAPSHOT_KEY, JSON.stringify({
+      savedAt: Date.now(),
+      state: remoteData,
+    }));
+  } catch (e) {
+    // Storage full or blocked -- the stash is a safety net, not a requirement.
+  }
+}
+
 function schedulePush() {
   if (!currentUser || applyingRemote) return;
   clearTimeout(pushTimer);
@@ -683,10 +712,15 @@ async function initSync() {
             firstSnapshot = false;
 
             if (!remoteData) {
-              // First sign-in on this account: seed the cloud with what's local.
+              // The document genuinely does not exist, so there is nothing to
+              // lose by seeding it from this device. A listener failure lands
+              // in the error handler below instead of here, precisely so it
+              // can never trigger this push.
               pushState(user.uid, Store.state).catch((e) => { lastSyncError = e.message || String(e); });
               return;
             }
+
+            stashRemoteSnapshot(remoteData);
 
             // The first snapshot after signing in is the only moment where two
             // independent histories meet. Blindly taking the remote copy here
@@ -702,6 +736,12 @@ async function initSync() {
             Store.migrate();
             Store.save();
             applyingRemote = false;
+            render();
+          }, (err) => {
+            // A failed listener means we do not know what the cloud holds, so
+            // the only safe move is to say so and change nothing.
+            lastSyncError = err && err.message ? err.message : String(err);
+            showToast('Sync paused: ' + lastSyncError, 'error');
             render();
           });
         } catch (e) {
@@ -2344,6 +2384,58 @@ function buildSyncSection() {
       err.textContent = `Last sync error: ${lastSyncError}`;
       section.appendChild(err);
     }
+    // Push this device's copy up on demand. The automatic push only fires on
+    // a local edit, which is no help when the cloud has already been clobbered
+    // and this device is the one still holding the good data.
+    const pushBtn = document.createElement('button');
+    pushBtn.className = 'btn-outline';
+    pushBtn.textContent = 'Upload this device now';
+    pushBtn.addEventListener('click', () => {
+      const c = countOf(Store.state);
+      if (!confirm(`Replace the cloud copy with this device's data`
+        + ` (${c.tasks} tasks, ${c.blocks} blocks)?`)) return;
+      pushState(currentUser.uid, Store.state)
+        .then(() => {
+          lastSyncError = null;
+          lastSyncedAt = Date.now();
+          showToast('Cloud updated from this device.', 'success');
+        })
+        .catch((e) => {
+          lastSyncError = e.message || String(e);
+          showToast('Could not upload: ' + lastSyncError, 'error');
+        });
+    });
+    section.appendChild(pushBtn);
+
+    const stashed = readRemoteSnapshot();
+    if (stashed) {
+      const c = countOf(stashed.state);
+      const restoreBtn = document.createElement('button');
+      restoreBtn.className = 'btn-outline';
+      restoreBtn.textContent = 'Restore last cloud copy seen here';
+      restoreBtn.addEventListener('click', () => {
+        const seenAt = new Date(stashed.savedAt).toLocaleString();
+        if (!confirm(`Replace this device's data with the cloud copy saved at`
+          + ` ${seenAt} (${c.tasks} tasks, ${c.blocks} blocks)?`)) return;
+        applyingRemote = true;
+        Store.state = stashed.state;
+        Store.migrate();
+        Store.save();
+        applyingRemote = false;
+        closeModal();
+        render();
+        showToast('Restored the saved cloud copy.', 'success');
+      });
+      section.appendChild(restoreBtn);
+
+      const stashNote = document.createElement('p');
+      stashNote.className = 'hint';
+      stashNote.textContent = `A copy of the cloud data as this device last saw it`
+        + ` (${c.tasks} tasks, ${c.blocks} blocks) is kept here in case a sync`
+        + ` overwrites something.`;
+      section.appendChild(stashNote);
+    }
+
     const signOutBtn = document.createElement('button');
     signOutBtn.className = 'btn-outline';
     signOutBtn.textContent = 'Sign out';
