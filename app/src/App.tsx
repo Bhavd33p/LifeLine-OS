@@ -70,19 +70,23 @@ export default function App() {
 
   return (
     <div className="mx-auto min-h-dvh max-w-3xl px-4">
-      <header className="sticky top-0 z-20 -mx-4 flex items-center gap-3 border-b bg-background/85 px-4 py-3 backdrop-blur">
+      {/* The page paints under the iOS status bar (black-translucent), so the
+          header has to reserve that height itself or its buttons sit beneath
+          the clock and cannot be tapped. env() is 0 everywhere else. */}
+      <header className="sticky top-0 z-20 -mx-4 flex items-center gap-2 border-b bg-background/85 px-4 pb-3 backdrop-blur"
+        style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-semibold tracking-tight">{ws.name}</h1>
           <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
         </div>
         <SyncBadge sync={sync} onOpenSettings={() => setSettingsOpen(true)} />
-        <Button variant="ghost" size="icon" aria-label="Search" onClick={() => setSearchOpen(true)}>
+        <Button variant="ghost" size="icon" className="size-10 shrink-0" aria-label="Search" onClick={() => setSearchOpen(true)}>
           <Search />
         </Button>
-        <Button variant="ghost" size="icon" aria-label="Manage workspaces" onClick={() => setWsOpen(true)}>
+        <Button variant="ghost" size="icon" className="size-10 shrink-0" aria-label="Manage workspaces" onClick={() => setWsOpen(true)}>
           <LayoutGrid />
         </Button>
-        <Button variant="ghost" size="icon" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
+        <Button variant="ghost" size="icon" className="size-10 shrink-0" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
           <SettingsIcon />
         </Button>
       </header>
