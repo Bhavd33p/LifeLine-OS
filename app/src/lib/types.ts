@@ -29,6 +29,9 @@ export interface Task {
 
 export interface Subtask { id: string; title: string; done: boolean }
 
+/** null means the block was never marked either way, which is not the same as missed. */
+export type BlockStatus = 'done' | 'missed' | null;
+
 export interface Block {
   id: string;
   date: string;
@@ -36,10 +39,12 @@ export interface Block {
   start: string;
   end: string;
   taskId: string | null;
+  status: BlockStatus;
   subtasks: Subtask[];
 }
 
-export type TemplateBlock = Omit<Block, 'date' | 'taskId'>;
+/** A template is a plan, so it carries no date, no link and no done/missed mark. */
+export type TemplateBlock = Omit<Block, 'date' | 'taskId' | 'status'>;
 
 export interface Alarm {
   id: string;

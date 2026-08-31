@@ -1,5 +1,5 @@
 import { useCallback, useRef, useSyncExternalStore } from 'react';
-import type { AppState, Block, MealDay, MealSlot, Task, Workspace } from './types';
+import type { AppState, Block, BlockStatus, MealDay, MealSlot, Task, Workspace } from './types';
 import { todayStr } from './date';
 
 // Unchanged from the vanilla app on purpose: the rewrite reads the data that is
@@ -140,6 +140,8 @@ export function migrate(raw: any): AppState {
   s.blocks.forEach((b) => {
     if (!Array.isArray(b.subtasks)) b.subtasks = [];
     if (b.taskId === undefined) b.taskId = null;
+    // Blocks planned before day-marking existed are unmarked, not missed.
+    if (b.status !== 'done' && b.status !== 'missed') b.status = null;
   });
 
   return s;
@@ -285,7 +287,39 @@ export function streakOf(t: Task) {
 }
 
 export const addBlock = (date: string, title: string, start: string, end: string, taskId: string | null) =>
-  update((s) => { s.blocks.push({ id: uid(), date, title, start, end, taskId: taskId || null, subtasks: [] }); });
+  update((s) => {
+    s.blocks.push({ id: uid(), date, title, start, end, taskId: taskId || null, status: null, subtasks: [] });
+  });
+
+/** Tapping the mark already set clears it, so a mis-tap is one tap to undo. */
+export const setBlockStatus = (id: string, status: BlockStatus) =>
+  update((s) => {
+    const b = s.blocks.find((x) => x.id === id);
+    if (b) b.status = b.status === status ? null : status;
+  });
+
+export interface DayReport {
+  date: string; done: number; missed: number; unmarked: number; total: number;
+  /** Share of the blocks that were actually marked done; null when none were marked at all. */
+  rate: number | null;
+}
+
+export function reportFor(s: AppState, date: string): DayReport {
+  const blocks = s.blocks.filter((b) => b.date === date);
+  const done = blocks.filter((b) => b.status === 'done').length;
+  const missed = blocks.filter((b) => b.status === 'missed').length;
+  const marked = done + missed;
+  return {
+    date,
+    done,
+    missed,
+    unmarked: blocks.length - marked,
+    total: blocks.length,
+    // Scored against what was actually judged, so a half-marked day is not
+    // punished for the blocks that were never looked at.
+    rate: marked ? (done / marked) * 100 : null,
+  };
+}
 
 export const updateBlock = (id: string, patch: Partial<Block>) =>
   update((s) => { const b = s.blocks.find((x) => x.id === id); if (b) Object.assign(b, patch); });
@@ -310,6 +344,7 @@ export const deleteSubtask = (blockId: string, subId: string) =>
 
 export const saveDayAsTemplate = (dateStr: string) =>
   update((s) => {
+    // A template is a plan, so it deliberately carries no done/missed marks.
     s.template = s.blocks.filter((b) => b.date === dateStr).map((b) => ({
       id: uid(), title: b.title, start: b.start, end: b.end,
       subtasks: b.subtasks.map((x) => ({ id: uid(), title: x.title, done: false })),
@@ -322,6 +357,7 @@ export const loadTemplateIntoDay = (dateStr: string) =>
     s.template.forEach((t) => {
       s.blocks.push({
         id: uid(), date: dateStr, title: t.title, start: t.start, end: t.end, taskId: null,
+        status: null,
         subtasks: t.subtasks.map((x) => ({ id: uid(), title: x.title, done: false })),
       });
     });

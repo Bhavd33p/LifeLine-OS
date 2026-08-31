@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ import {
 } from '@/lib/date';
 import {
   addSubtask, deleteBlock, deleteSubtask, getState, loadTemplateIntoDay,
-  saveDayAsTemplate, toggleSubtask, useStore,
+  saveDayAsTemplate, setBlockStatus, toggleSubtask, useStore,
 } from '@/lib/store';
 import type { Block } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -191,10 +191,18 @@ function Timeline({ blocks, isToday, onEdit }: {
 function BlockCard({ block: b, isNow, onEdit }: { block: Block; isNow: boolean; onEdit: () => void }) {
   const [sub, setSub] = useState('');
   return (
-    <Card className={cn('group gap-2 p-4', isNow && 'ring-2 ring-ring')}>
+    <Card className={cn(
+      'group gap-2 p-4',
+      isNow && 'ring-2 ring-ring',
+      b.status === 'done' && 'border-emerald-600/40 bg-emerald-600/5',
+      b.status === 'missed' && 'border-red-600/40 bg-red-600/5',
+    )}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="font-medium leading-snug break-words">{b.title}</div>
+          <div className={cn('font-medium leading-snug break-words',
+            b.status === 'missed' && 'text-muted-foreground line-through')}>
+            {b.title}
+          </div>
           <div className="mt-0.5 text-xs tabular-nums text-muted-foreground">
             {formatTime12(b.start)} – {formatTime12(b.end)}
             {isOvernight(b) && (
@@ -203,6 +211,19 @@ function BlockCard({ block: b, isNow, onEdit }: { block: Block; isNow: boolean; 
           </div>
         </div>
         <div className="flex shrink-0 gap-1">
+          {/* Did this actually happen? Tapping the same mark again clears it. */}
+          <Button variant="ghost" size="icon" aria-pressed={b.status === 'done'}
+            className={cn('size-8', b.status === 'done' && 'bg-emerald-600 text-white hover:bg-emerald-600/90')}
+            aria-label={`Mark “${b.title}” done`}
+            onClick={() => setBlockStatus(b.id, 'done')}>
+            <Check className="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon" aria-pressed={b.status === 'missed'}
+            className={cn('size-8', b.status === 'missed' && 'bg-red-600 text-white hover:bg-red-600/90')}
+            aria-label={`Mark “${b.title}” missed`}
+            onClick={() => setBlockStatus(b.id, 'missed')}>
+            <X className="size-4" />
+          </Button>
           <Button variant="ghost" size="icon" className="size-8" aria-label="Edit block" onClick={onEdit}>
             <Pencil className="size-4" />
           </Button>
