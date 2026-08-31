@@ -17,68 +17,10 @@ const DEFAULT_WORKSPACES = [
   { id: 'tasks', name: 'Tasks', icon: '✅', system: true, type: 'tasks' },
   { id: 'health', name: 'Health', icon: '❤️', system: true, type: 'tasks' },
   { id: 'cpdsa', name: 'CP / DSA', icon: '💻', system: true, type: 'tasks' },
-  { id: 'companies', name: 'Companies', icon: '🏢', system: true, type: 'tasks' },
   { id: 'skincare', name: 'Skincare', icon: '✨', system: true, type: 'tasks' },
   { id: 'gym', name: 'Gym', icon: '🏋️', system: true, type: 'tasks' },
+  { id: 'meals', name: 'Meals', icon: '🍳', system: true, type: 'meals' },
   { id: 'stats', name: 'Stats', icon: '📊', system: true, type: 'stats' },
-];
-
-const MOTIVATION_BANNER_TEXT = 'Apply daily. You are not destined to be here.';
-
-// Curated MNCs with a strong India SDE1/SDE2 hiring presence, generally regarded
-// (via Blind/Glassdoor/levels.fyi consensus) as paying well with decent-to-great WLB.
-// Notes are qualitative, not quoted offers — always verify current comp on levels.fyi.
-const COMPANY_SEED_DATA = [
-  ['Google', 'Big Tech · top-tier comp, strong WLB'],
-  ['Microsoft', 'Big Tech · strong comp, well-regarded WLB'],
-  ['Amazon', 'Big Tech · high comp, WLB varies by team'],
-  ['Adobe', 'Product · strong comp, good WLB reputation'],
-  ['Salesforce', 'Enterprise SaaS · strong comp & benefits'],
-  ['Atlassian', 'Product (Bangalore) · great WLB, remote-friendly'],
-  ['ServiceNow', 'Enterprise SaaS · strong comp, good culture'],
-  ['Walmart Global Tech', 'Retail tech · solid comp, stable WLB'],
-  ['Visa', 'Fintech/payments · strong comp & stability'],
-  ['Mastercard', 'Fintech/payments · strong comp & stability'],
-  ['PayPal', 'Fintech · good comp, decent WLB'],
-  ['Uber', 'Product · strong comp, fast-paced'],
-  ['LinkedIn', 'Product (Microsoft) · strong comp, good culture'],
-  ['Nutanix', 'Infra/cloud · strong comp, good WLB'],
-  ['Cisco', 'Networking · stable comp, good WLB'],
-  ['Intuit', 'Product · strong comp, well-regarded culture'],
-  ['SAP Labs', 'Enterprise software · solid comp, great WLB'],
-  ['VMware (Broadcom)', 'Infra/cloud · strong comp'],
-  ['Qualcomm', 'Semiconductor · strong comp, good WLB'],
-  ['NVIDIA', 'Semiconductor/AI · top-tier comp'],
-  ['Texas Instruments', 'Semiconductor · stable comp, great WLB'],
-  ['Micron Technology', 'Semiconductor · strong comp, good WLB'],
-  ['Juniper Networks', 'Networking · solid comp, good WLB'],
-  ['Arista Networks', 'Networking · strong comp'],
-  ['Dell Technologies', 'Hardware/cloud · stable comp, good WLB'],
-  ['Hewlett Packard Enterprise', 'Hardware/cloud · stable comp, good WLB'],
-  ['IBM', 'Enterprise/research · stable comp, good WLB'],
-  ['Goldman Sachs (Engineering)', 'Finance tech · very strong comp'],
-  ['Morgan Stanley (Technology)', 'Finance tech · strong comp'],
-  ['JPMorgan Chase (Technology)', 'Finance tech · strong comp, stable'],
-  ['Barclays (Technology)', 'Finance tech · good comp, good WLB'],
-  ['Deutsche Bank (Technology)', 'Finance tech · good comp, good WLB'],
-  ['American Express (Technology)', 'Finance tech · good comp, great WLB'],
-  ['Rubrik', 'Cloud data mgmt · strong comp'],
-  ['Confluent', 'Data infra · strong comp'],
-  ['Databricks', 'Data/AI · top-tier comp'],
-  ['Splunk (Cisco)', 'Data/observability · strong comp'],
-  ['Palo Alto Networks', 'Security · strong comp'],
-  ['Akamai Technologies', 'Cloud/CDN · solid comp, good WLB'],
-  ['Autodesk', 'Product · solid comp, good WLB'],
-  ['Workday', 'Enterprise SaaS · strong comp, good culture'],
-  ['Twilio', 'Product · solid comp'],
-  ['GoDaddy', 'Product · solid comp, good WLB'],
-  ['Expedia Group', 'Travel tech · solid comp, good WLB'],
-  ['UBS', 'Finance tech · strong comp, good WLB'],
-  ['Wells Fargo (Technology)', 'Finance tech · good comp, great WLB'],
-  ['Target Corporation (Tech)', 'Retail tech · good comp, great WLB'],
-  ['Samsung R&D Institute India', 'R&D · solid comp, stable WLB'],
-  ['Bosch Global Software Technologies', 'Auto/industrial tech · great WLB'],
-  ['Philips Innovation Campus', 'HealthTech R&D · great WLB'],
 ];
 
 const PRIORITIES = ['low', 'medium', 'high'];
@@ -95,6 +37,9 @@ function defaultState() {
     // block: {id, date:'YYYY-MM-DD', title, start:'HH:MM', end:'HH:MM', taskId, subtasks:[{id,title,done}]}
     blocks: [],
     template: [], // block-shape without date
+    // meals: {'YYYY-MM-DD': {breakfast, lunch, snacks, dinner}} -- a slot is
+    // absent rather than empty, so an unplanned day costs nothing to store.
+    meals: {},
     labels: [...DEFAULT_LABELS],
     settings: {
       theme: 'system',
@@ -127,6 +72,9 @@ const Store = {
     if (!Array.isArray(this.state.blocks)) this.state.blocks = [];
     if (!Array.isArray(this.state.labels)) this.state.labels = [...DEFAULT_LABELS];
     if (!Array.isArray(this.state.template)) this.state.template = [];
+    if (!this.state.meals || typeof this.state.meals !== 'object' || Array.isArray(this.state.meals)) {
+      this.state.meals = {};
+    }
     this.state.workspaces = this.state.workspaces.filter((w) => w && typeof w === 'object' && w.id);
     this.state.tasks = this.state.tasks.filter((t) => t && typeof t === 'object' && t.id);
     this.state.blocks = this.state.blocks.filter((b) => b && typeof b === 'object' && b.id);
@@ -148,31 +96,20 @@ const Store = {
     if (!this.state.workspaces.some((w) => w.id === 'stats')) {
       this.state.workspaces.push({ id: 'stats', name: 'Stats', icon: '📊', system: true, type: 'stats' });
     }
-    if (!this.state.workspaces.some((w) => w.id === 'companies')) {
-      const cpdsaIdx = this.state.workspaces.findIndex((w) => w.id === 'cpdsa');
-      const insertAt = cpdsaIdx === -1 ? this.state.workspaces.length : cpdsaIdx + 1;
-      this.state.workspaces.splice(insertAt, 0, { id: 'companies', name: 'Companies', icon: '🏢', system: true, type: 'tasks' });
+    if (!this.state.workspaces.some((w) => w.id === 'meals')) {
+      // Slotted in before Stats, which is always meant to be the last tab.
+      const statsIdx = this.state.workspaces.findIndex((w) => w.id === 'stats');
+      const at = statsIdx === -1 ? this.state.workspaces.length : statsIdx;
+      this.state.workspaces.splice(at, 0, { id: 'meals', name: 'Meals', icon: '🍳', system: true, type: 'meals' });
     }
-    if (!this.state.companiesSeeded) {
-      COMPANY_SEED_DATA.forEach(([name, note]) => {
-        this.state.tasks.push({
-          id: uid(),
-          workspaceId: 'companies',
-          title: name,
-          notes: note,
-          labels: [],
-          done: false,
-          priority: null,
-          dueDate: null,
-          dueTime: null,
-          recurrence: 'none',
-          completions: {},
-          createdAt: Date.now(),
-          completedAt: null,
-        });
-      });
-      this.state.companiesSeeded = true;
+    // The Companies workspace and its seeded MNC list were dropped. Installs
+    // that already have them get cleaned up here rather than carrying a
+    // workspace that no longer has any code behind it.
+    if (this.state.workspaces.some((w) => w.id === 'companies')) {
+      this.state.workspaces = this.state.workspaces.filter((w) => w.id !== 'companies');
+      this.state.tasks = this.state.tasks.filter((t) => t.workspaceId !== 'companies');
     }
+    delete this.state.companiesSeeded;
     if (!this.state.templeTaskSeeded) {
       this.state.tasks.push({
         id: uid(),
@@ -290,6 +227,27 @@ function minutesOf(hhmm) {
 function nowMinutes() {
   const d = new Date();
   return d.getHours() * 60 + d.getMinutes();
+}
+
+/**
+ * A block's end, in minutes measured from the midnight its own day started at.
+ * An end time at or before the start means the block runs past midnight
+ * (Sleep 11:00 pm - 7:00 am), so its end belongs to the following day and is
+ * counted as 1860, not 420. Every duration, progress bar and gap calculation
+ * goes through this, so an overnight block measures like any other.
+ */
+function endMinutesOf(block) {
+  const s = minutesOf(block.start);
+  const e = minutesOf(block.end);
+  if (!Number.isFinite(s) || !Number.isFinite(e)) return NaN;
+  return e <= s ? e + 1440 : e;
+}
+
+/** True when a block's end time lands on the day after it started. */
+function isOvernight(block) {
+  const s = minutesOf(block.start);
+  const e = minutesOf(block.end);
+  return Number.isFinite(s) && Number.isFinite(e) && e <= s;
 }
 
 /** '14:30' -> '2:30 pm' — friendlier than 24h on a glanceable timeline. */
@@ -477,7 +435,14 @@ function loadTemplateIntoDay(dateStr) {
 /* ============================== App state ============================== */
 
 let currentWorkspaceId = localStorage.getItem(LAST_WORKSPACE_KEY) || 'timetable';
+// Set by the quick-add form as it submits and consumed by the very next render,
+// so adding a task re-opens the form focused with the same labels still picked
+// instead of collapsing it and costing a tap per task.
+let quickAddSticky = null;
 let currentTimetableDate = todayStr();
+// The meal planner shows a rolling 7 days from this date rather than a fixed
+// Mon-Sun week -- "what am I eating this coming week" starts today, not Monday.
+let currentMealWeekStart = todayStr();
 const currentTaskFilter = {};
 const currentTaskSort = {};
 
@@ -633,9 +598,10 @@ function hasLocalContent() {
   const s = Store.state;
   if (!s) return false;
   if (s.blocks.length || s.template.length) return true;
-  // The seeded Companies list and temple task exist on every fresh install, so
-  // they don't count as content the user would miss.
-  return s.tasks.some((t) => t.workspaceId !== 'companies' && t.title !== 'Go to temple');
+  if (s.meals && Object.keys(s.meals).length) return true;
+  // The seeded temple task exists on every fresh install, so it doesn't count
+  // as content the user would miss.
+  return s.tasks.some((t) => t.title !== 'Go to temple');
 }
 
 function countOf(state) {
@@ -808,6 +774,10 @@ function renderTopbar() {
     subtitle.textContent = count ? `${count} block${count === 1 ? '' : 's'} planned` : 'Nothing planned';
   } else if (ws.type === 'stats') {
     subtitle.textContent = 'Your last 7 days';
+  } else if (ws.type === 'meals') {
+    const planned = countPlannedMeals(mealWeekDays());
+    const total = 7 * MEAL_SLOTS.length;
+    subtitle.textContent = planned ? `${planned} of ${total} meals planned` : 'Nothing planned yet';
   } else {
     const all = Store.state.tasks.filter((t) => t.workspaceId === ws.id);
     const open = all.filter((t) => !isTaskDoneToday(t)).length;
@@ -962,7 +932,7 @@ function renderChipRail() {
 function renderFab() {
   const fab = document.getElementById('fab');
   const ws = getWorkspace(currentWorkspaceId);
-  if (!ws || ws.type === 'stats') { fab.hidden = true; return; }
+  if (!ws || ws.type === 'stats' || ws.type === 'meals') { fab.hidden = true; return; }
   fab.hidden = false;
   fab.innerHTML = '';
   addIcon(fab, 'plus');
@@ -1111,19 +1081,15 @@ function renderTaskWorkspaceView(ws) {
   const container = document.createElement('div');
   container.className = 'task-workspace';
 
-  if (ws.id === 'companies') {
-    const banner = document.createElement('div');
-    banner.className = 'motivation-banner';
-    banner.textContent = MOTIVATION_BANNER_TEXT;
-    container.appendChild(banner);
-  }
-
   if (ws.id === 'cpdsa') {
     container.appendChild(renderContestSection());
   }
 
   // Quick-add stays a single line until focused, so the workspace opens on the
   // list rather than on a tall form.
+  const sticky = quickAddSticky && quickAddSticky.workspaceId === ws.id ? quickAddSticky : null;
+  quickAddSticky = null;
+
   const form = document.createElement('form');
   form.className = 'quick-add';
 
@@ -1155,6 +1121,10 @@ function renderTaskWorkspaceView(ws) {
     chip.type = 'button';
     chip.className = 'label-chip selectable';
     chip.textContent = label;
+    if (sticky && sticky.labels.includes(label)) {
+      selectedLabels.add(label);
+      chip.classList.add('selected');
+    }
     chip.addEventListener('click', () => {
       if (selectedLabels.has(label)) { selectedLabels.delete(label); chip.classList.remove('selected'); }
       else { selectedLabels.add(label); chip.classList.add('selected'); }
@@ -1181,8 +1151,23 @@ function renderTaskWorkspaceView(ws) {
     const title = titleInput.value.trim();
     if (!title) return;
     addTask(ws.id, title, Array.from(selectedLabels), details.state);
+    quickAddSticky = { workspaceId: ws.id, labels: Array.from(selectedLabels), justAdded: title };
     render();
   });
+
+  if (sticky) {
+    // Re-opened straight after an add: say what landed, then get out of the way.
+    form.classList.add('expanded');
+    const confirmEl = document.createElement('div');
+    confirmEl.className = 'quick-add-confirm';
+    confirmEl.textContent = `Added \u201C${sticky.justAdded}\u201D`;
+    form.appendChild(confirmEl);
+    setTimeout(() => confirmEl.classList.add('is-fading'), 1500);
+    // The form is appended to the DOM by the caller, so focus has to wait a
+    // frame -- focusing a detached input silently does nothing.
+    requestAnimationFrame(() => titleInput.focus({ preventScroll: true }));
+  }
+
   container.appendChild(form);
 
   const filterRow = document.createElement('div');
@@ -1447,7 +1432,12 @@ function renderTimetableView() {
     .sort((a, b) => String(a.start).localeCompare(String(b.start)));
 
   const isToday = currentTimetableDate === todayStr();
-  if (isToday && blocks.length) container.appendChild(renderNowCard(blocks));
+  // Yesterday's overnight blocks are still running this morning, so the Now
+  // card needs them even though they belong to the previous day's timeline.
+  const spill = isToday
+    ? Store.state.blocks.filter((b) => b.date === addDaysStr(currentTimetableDate, -1) && isOvernight(b))
+    : [];
+  if (isToday && (blocks.length || spill.length)) container.appendChild(renderNowCard(blocks, spill));
 
   const actions = document.createElement('div');
   actions.className = 'action-row';
@@ -1480,14 +1470,21 @@ function renderTimetableView() {
 }
 
 /** What's happening right now, and what's next — the reason to open the app. */
-function renderNowCard(blocks) {
+function renderNowCard(blocks, spill) {
   const now = nowMinutes();
-  const current = blocks.find((b) => {
-    const s = minutesOf(b.start);
-    const e = minutesOf(b.end);
-    return Number.isFinite(s) && Number.isFinite(e) && now >= s && now < e;
-  });
-  const next = blocks.find((b) => minutesOf(b.start) > now);
+  // Yesterday's overnight blocks are still running this morning, so they are
+  // folded in at a negative offset -- an 11:00 pm start becomes -60 -- and the
+  // same "now sits inside this range" test then covers both days. Without this
+  // a 11pm-7am sleep block reads "Free right now" at 6 in the morning.
+  const occurrences = [
+    ...(spill || []).map((b) => ({ block: b, startMin: minutesOf(b.start) - 1440, endMin: endMinutesOf(b) - 1440 })),
+    ...blocks.map((b) => ({ block: b, startMin: minutesOf(b.start), endMin: endMinutesOf(b) })),
+  ].filter((o) => Number.isFinite(o.startMin) && Number.isFinite(o.endMin));
+
+  const currentOcc = occurrences.find((o) => now >= o.startMin && now < o.endMin);
+  const nextOcc = occurrences.find((o) => o.startMin > now);
+  const current = currentOcc ? currentOcc.block : null;
+  const next = nextOcc ? nextOcc.block : null;
 
   const card = document.createElement('div');
   card.className = 'now-card' + (current ? '' : ' is-idle');
@@ -1507,12 +1504,12 @@ function renderNowCard(blocks) {
     title.textContent = current.title;
     card.appendChild(title);
 
-    const start = minutesOf(current.start);
-    const end = minutesOf(current.end);
+    const start = currentOcc.startMin;
+    const end = currentOcc.endMin;
     const meta = document.createElement('div');
     meta.className = 'now-meta';
-    meta.textContent = `${formatTime12(current.start)} – ${formatTime12(current.end)} · `
-      + `${formatDuration(end - now)} left`;
+    meta.textContent = `${formatTime12(current.start)} – ${formatTime12(current.end)}`
+      + `${isOvernight(current) ? ' (+1)' : ''} · ${formatDuration(end - now)} left`;
     card.appendChild(meta);
 
     const track = document.createElement('div');
@@ -1562,10 +1559,11 @@ function renderTimeline(blocks, isToday) {
 
   blocks.forEach((b, i) => {
     const start = minutesOf(b.start);
-    const end = minutesOf(b.end);
+    const end = endMinutesOf(b);
 
     const item = document.createElement('div');
     item.className = 'tl-item';
+    if (isOvernight(b)) item.classList.add('is-overnight');
     if (isToday && Number.isFinite(end)) {
       if (now >= start && now < end) item.classList.add('is-now');
       else if (now >= end) item.classList.add('is-past');
@@ -1632,6 +1630,13 @@ function renderBlockCard(b) {
   const durationEl = document.createElement('div');
   durationEl.className = 'block-duration';
   durationEl.textContent = `${formatTime12(b.start)} – ${formatTime12(b.end)}`;
+  if (isOvernight(b)) {
+    const nextDay = document.createElement('span');
+    nextDay.className = 'next-day-tag';
+    nextDay.textContent = '+1';
+    nextDay.title = 'Ends the next day';
+    durationEl.appendChild(nextDay);
+  }
   titleRow.appendChild(durationEl);
 
   const linkedTask = b.taskId ? Store.state.tasks.find((t) => t.id === b.taskId) : null;
@@ -1778,6 +1783,27 @@ function openBlockModal(block) {
   timeRow.appendChild(endLabel);
   body.appendChild(timeRow);
 
+  // Spell out the midnight crossing while they type, so an end of 7:00 am
+  // reads as tomorrow morning rather than looking like a mistake.
+  const overnightHint = document.createElement('p');
+  overnightHint.className = 'overnight-hint';
+  const syncOvernightHint = () => {
+    const sMin = minutesOf(startInput.value);
+    const eMin = minutesOf(endInput.value);
+    const crosses = Number.isFinite(sMin) && Number.isFinite(eMin) && eMin < sMin;
+    overnightHint.hidden = !crosses;
+    if (crosses) {
+      overnightHint.textContent = `Runs past midnight — ends ${formatTime12(endInput.value)} the next day`
+        + ` · ${formatDuration(eMin + 1440 - sMin)}`;
+    }
+  };
+  ['input', 'change'].forEach((evt) => {
+    startInput.addEventListener(evt, syncOvernightHint);
+    endInput.addEventListener(evt, syncOvernightHint);
+  });
+  syncOvernightHint();
+  body.appendChild(overnightHint);
+
   const errorEl = document.createElement('p');
   errorEl.className = 'form-error';
   body.appendChild(errorEl);
@@ -1810,7 +1836,10 @@ function openBlockModal(block) {
     const end = endInput.value;
     const taskId = select ? (select.value || null) : null;
     if (!title || !start || !end) return;
-    if (end <= start) { errorEl.textContent = 'End time must be after start time.'; return; }
+    // An end before the start is not a mistake any more -- it means the block
+    // runs past midnight. Only an end equal to the start is rejected, since
+    // that is either a zero-length block or an accidental 24-hour one.
+    if (end === start) { errorEl.textContent = 'Start and end time cannot be the same.'; return; }
     if (isEdit) {
       updateBlock(block.id, { title, start, end, taskId });
     } else {
@@ -1819,6 +1848,228 @@ function openBlockModal(block) {
     closeModal();
     render();
   });
+}
+
+/* ============================== Meals ============================== */
+
+// The four slots, in the order they get eaten. Fixed rather than configurable:
+// the planner is read as a grid, and a ragged grid stops being scannable.
+const MEAL_SLOTS = [
+  ['breakfast', 'Breakfast'],
+  ['lunch', 'Lunch'],
+  ['snacks', 'Snacks'],
+  ['dinner', 'Dinner'],
+];
+
+/** 'YYYY-MM-DD' -> 'Mon 1 Sep' — compact enough to sit in a week strip. */
+function formatDayShort(str) {
+  const [y, m, d] = str.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+/** The seven dates the planner is currently showing. */
+function mealWeekDays() {
+  const days = [];
+  for (let i = 0; i < 7; i += 1) days.push(addDaysStr(currentMealWeekStart, i));
+  return days;
+}
+
+function getMeal(dateStr, slot) {
+  const day = Store.state.meals[dateStr];
+  return day && typeof day[slot] === 'string' ? day[slot] : '';
+}
+
+function setMeal(dateStr, slot, value) {
+  const dish = value.trim();
+  if (dish) {
+    if (!Store.state.meals[dateStr]) Store.state.meals[dateStr] = {};
+    Store.state.meals[dateStr][slot] = dish;
+  } else {
+    const day = Store.state.meals[dateStr];
+    if (!day) return;
+    delete day[slot];
+    // A cleared day is dropped outright, so the saved state doesn't accumulate
+    // an empty object for every day that was ever opened.
+    if (Object.keys(day).length === 0) delete Store.state.meals[dateStr];
+  }
+  Store.save();
+}
+
+/** Dishes already planned, most recent first — this feeds the autocomplete. */
+function dishSuggestions() {
+  const seen = new Map();
+  Object.keys(Store.state.meals).sort().reverse().forEach((date) => {
+    const day = Store.state.meals[date];
+    if (!day || typeof day !== 'object') return;
+    MEAL_SLOTS.forEach(([slot]) => {
+      const dish = day[slot];
+      if (typeof dish === 'string' && dish && !seen.has(dish.toLowerCase())) {
+        seen.set(dish.toLowerCase(), dish);
+      }
+    });
+  });
+  return Array.from(seen.values());
+}
+
+function countPlannedMeals(days) {
+  let n = 0;
+  days.forEach((d) => MEAL_SLOTS.forEach(([slot]) => { if (getMeal(d, slot)) n += 1; }));
+  return n;
+}
+
+/** Fills only the empty slots from the same weekday a week earlier. */
+function copyPreviousWeekMeals(days) {
+  let filled = 0;
+  days.forEach((d) => {
+    MEAL_SLOTS.forEach(([slot]) => {
+      if (getMeal(d, slot)) return;
+      const dish = getMeal(addDaysStr(d, -7), slot);
+      if (!dish) return;
+      setMeal(d, slot, dish);
+      filled += 1;
+    });
+  });
+  return filled;
+}
+
+function renderMealsView() {
+  const container = document.createElement('div');
+  container.className = 'meals-workspace';
+  const days = mealWeekDays();
+  const today = todayStr();
+
+  // Week switcher, deliberately the same shape as the timetable's day switcher
+  // so the two planning screens are navigated the same way.
+  const switcher = document.createElement('div');
+  switcher.className = 'date-switcher';
+
+  const prevBtn = document.createElement('button');
+  prevBtn.className = 'icon-btn';
+  prevBtn.setAttribute('aria-label', 'Previous week');
+  addIcon(prevBtn, 'chevronLeft');
+  prevBtn.addEventListener('click', () => {
+    currentMealWeekStart = addDaysStr(currentMealWeekStart, -7);
+    render();
+  });
+
+  const dateLabel = document.createElement('div');
+  dateLabel.className = 'date-label';
+  const main = document.createElement('div');
+  main.className = 'date-main';
+  main.textContent = currentMealWeekStart === today ? 'Next 7 days' : formatDateLabel(currentMealWeekStart) + ' onward';
+  const sub = document.createElement('div');
+  sub.className = 'date-sub';
+  sub.textContent = `${formatDayShort(days[0])} – ${formatDayShort(days[6])}`;
+  dateLabel.appendChild(main);
+  dateLabel.appendChild(sub);
+  dateLabel.style.cursor = 'pointer';
+  dateLabel.title = 'Jump back to today';
+  dateLabel.addEventListener('click', () => { currentMealWeekStart = today; render(); });
+
+  const nextBtn = document.createElement('button');
+  nextBtn.className = 'icon-btn';
+  nextBtn.setAttribute('aria-label', 'Next week');
+  addIcon(nextBtn, 'chevronRight');
+  nextBtn.addEventListener('click', () => {
+    currentMealWeekStart = addDaysStr(currentMealWeekStart, 7);
+    render();
+  });
+
+  switcher.appendChild(prevBtn);
+  switcher.appendChild(dateLabel);
+  switcher.appendChild(nextBtn);
+  container.appendChild(switcher);
+
+  const actions = document.createElement('div');
+  actions.className = 'action-row';
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'btn-outline';
+  addIcon(copyBtn, 'inbox');
+  copyBtn.appendChild(document.createTextNode('Copy last week'));
+  copyBtn.addEventListener('click', () => {
+    const filled = copyPreviousWeekMeals(days);
+    if (!filled) {
+      alert('Nothing to copy — the 7 days before this week have no meals planned.');
+      return;
+    }
+    render();
+  });
+  actions.appendChild(copyBtn);
+  container.appendChild(actions);
+
+  // One shared suggestion list for every input on the screen.
+  const datalist = document.createElement('datalist');
+  datalist.id = 'dishSuggestions';
+  const refreshSuggestions = () => {
+    datalist.innerHTML = '';
+    dishSuggestions().forEach((dish) => {
+      const opt = document.createElement('option');
+      opt.value = dish;
+      datalist.appendChild(opt);
+    });
+  };
+  refreshSuggestions();
+  container.appendChild(datalist);
+
+  const grid = document.createElement('div');
+  grid.className = 'meal-grid';
+
+  days.forEach((date) => {
+    const card = document.createElement('section');
+    card.className = 'meal-day';
+    if (date === today) card.classList.add('is-today');
+    else if (date < today) card.classList.add('is-past');
+
+    const head = document.createElement('div');
+    head.className = 'meal-day-head';
+    const name = document.createElement('div');
+    name.className = 'meal-day-name';
+    name.textContent = formatDateLabel(date);
+    const when = document.createElement('div');
+    when.className = 'meal-day-date';
+    when.textContent = formatDayShort(date);
+    head.appendChild(name);
+    head.appendChild(when);
+    card.appendChild(head);
+
+    MEAL_SLOTS.forEach(([slot, slotLabel]) => {
+      const row = document.createElement('label');
+      row.className = 'meal-slot';
+      const slotName = document.createElement('span');
+      slotName.className = 'meal-slot-name';
+      slotName.textContent = slotLabel;
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'meal-input';
+      input.placeholder = 'Not planned';
+      input.value = getMeal(date, slot);
+      input.setAttribute('list', 'dishSuggestions');
+      input.setAttribute('aria-label', `${slotLabel} on ${formatDayShort(date)}`);
+      if (input.value) row.classList.add('is-filled');
+
+      // Saved on change rather than per keystroke, and without a re-render:
+      // the input already shows the value, and re-rendering would drop focus
+      // mid-typing on every one of the 28 fields.
+      input.addEventListener('change', () => {
+        setMeal(date, slot, input.value);
+        input.value = getMeal(date, slot);
+        row.classList.toggle('is-filled', !!input.value);
+        renderTopbar();
+        refreshSuggestions();
+      });
+
+      row.appendChild(slotName);
+      row.appendChild(input);
+      card.appendChild(row);
+    });
+
+    grid.appendChild(card);
+  });
+
+  container.appendChild(grid);
+  return container;
 }
 
 /* ============================== Stats view ============================== */
@@ -2478,6 +2729,7 @@ function render() {
     }
     if (ws.type === 'timetable') content.appendChild(renderTimetableView());
     else if (ws.type === 'stats') content.appendChild(renderStatsView());
+    else if (ws.type === 'meals') content.appendChild(renderMealsView());
     else content.appendChild(renderTaskWorkspaceView(ws));
   } catch (err) {
     renderErrorState(content, err);

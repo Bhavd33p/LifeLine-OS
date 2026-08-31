@@ -103,9 +103,9 @@
 :root[data-ws="tasks"]     { --accent: #5F8A69; }
 :root[data-ws="health"]    { --accent: #BC6079; }
 :root[data-ws="cpdsa"]     { --accent: #6070A6; }
-:root[data-ws="companies"] { --accent: #AF7F38; }
 :root[data-ws="skincare"]  { --accent: #9271B0; }
 :root[data-ws="gym"]       { --accent: #A15C4C; }
+:root[data-ws="meals"]     { --accent: #97703A; }
 :root[data-ws="stats"]     { --accent: #4C8687; }
 
 /* Dark mode lifts each hue so it stays legible on charcoal. */
@@ -113,9 +113,9 @@
 :root[data-theme="dark"][data-ws="tasks"]     { --accent: #8CBF97; }
 :root[data-theme="dark"][data-ws="health"]    { --accent: #E491A6; }
 :root[data-theme="dark"][data-ws="cpdsa"]     { --accent: #94A3DC; }
-:root[data-theme="dark"][data-ws="companies"] { --accent: #DFB067; }
 :root[data-theme="dark"][data-ws="skincare"]  { --accent: #C2A0DC; }
 :root[data-theme="dark"][data-ws="gym"]       { --accent: #D48B78; }
+:root[data-theme="dark"][data-ws="meals"]     { --accent: #D7AC6B; }
 :root[data-theme="dark"][data-ws="stats"]     { --accent: #7CBCBD; }
 
 @media (prefers-color-scheme: dark) {
@@ -123,9 +123,9 @@
   :root:not([data-theme="light"])[data-ws="tasks"]     { --accent: #8CBF97; }
   :root:not([data-theme="light"])[data-ws="health"]    { --accent: #E491A6; }
   :root:not([data-theme="light"])[data-ws="cpdsa"]     { --accent: #94A3DC; }
-  :root:not([data-theme="light"])[data-ws="companies"] { --accent: #DFB067; }
   :root:not([data-theme="light"])[data-ws="skincare"]  { --accent: #C2A0DC; }
   :root:not([data-theme="light"])[data-ws="gym"]       { --accent: #D48B78; }
+  :root:not([data-theme="light"])[data-ws="meals"]     { --accent: #D7AC6B; }
   :root:not([data-theme="light"])[data-ws="stats"]     { --accent: #7CBCBD; }
 }
 
@@ -172,7 +172,16 @@ body::before {
   transition: background 600ms var(--ease);
 }
 
-h1, h2, h3, .serif { font-family: var(--serif); font-weight: 600; letter-spacing: -0.01em; }
+h1, h2, h3, .serif {
+  font-family: var(--serif);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  /* Headings break on sense rather than on the right margin — no single
+     orphaned word on the last line. */
+  text-wrap: balance;
+}
+
+::selection { background: var(--accent-line); color: var(--text); }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -697,7 +706,23 @@ h1, h2, h3, .serif { font-family: var(--serif); font-weight: 600; letter-spacing
   box-shadow: var(--shadow-xs);
   transition: box-shadow 220ms var(--ease), transform 220ms var(--ease), opacity 220ms var(--ease);
 }
-.block-card:hover { box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+@media (hover: hover) {
+  .block-card:hover { box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+}
+
+/* Touch has no hover to reveal affordances, so the small row buttons get real
+   thumb-sized targets instead of the tight desktop ones. */
+@media (hover: none) {
+  .icon-btn.small { width: 38px; height: 38px; }
+  .icon-btn.tiny { width: 32px; height: 32px; }
+}
+
+/* A block that runs past midnight leaves the dot open and ringed, so the day
+   reads as carrying over rather than simply stopping at its last block. */
+.tl-item.is-overnight .tl-dot {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
 
 /* Past / now / future states — the day reads at a glance. */
 .tl-item.is-past { opacity: 0.5; }
@@ -741,6 +766,20 @@ h1, h2, h3, .serif { font-family: var(--serif); font-weight: 600; letter-spacing
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
   margin-top: 2px;
+}
+/* "+1" on a block that runs past midnight — small enough to ignore once you
+   know the block, loud enough to catch the first time you see it. */
+.next-day-tag {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  vertical-align: 1px;
 }
 .linked-badge {
   display: inline-flex;
@@ -864,6 +903,20 @@ h1, h2, h3, .serif { font-family: var(--serif); font-weight: 600; letter-spacing
 }
 .quick-add-submit .icon { width: 16px; height: 16px; }
 .quick-add-submit:active { transform: scale(0.9); }
+/* Confirmation of the task that just landed. It sits inside the form so the
+   list below never shifts, and fades out on its own. */
+.quick-add-confirm {
+  margin-top: 11px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--success);
+  opacity: 1;
+  transition: opacity 500ms var(--ease);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.quick-add-confirm.is-fading { opacity: 0; }
 
 .label-picker { display: flex; flex-wrap: wrap; gap: 6px; }
 
@@ -1128,13 +1181,18 @@ h1, h2, h3, .serif { font-family: var(--serif); font-weight: 600; letter-spacing
 .empty-state {
   color: var(--text-muted);
   text-align: center;
-  padding: 44px 24px;
+  padding: 46px 26px;
   font-size: 0.9rem;
   line-height: 1.6;
-  background: var(--surface-alt);
-  border: 1px dashed var(--border-strong);
+  /* The only dashed edge in the app, so it needs to read as "nothing here yet"
+     without turning into a hard box: soft wash, faint border, no shadow. */
+  background:
+    radial-gradient(340px circle at 50% 0%, var(--accent-soft), transparent 70%),
+    var(--surface-alt);
+  border: 1px dashed var(--border);
   border-radius: var(--radius-xl);
   margin: 0;
+  text-wrap: pretty;
 }
 .empty-state .icon {
   width: 26px;
@@ -1256,6 +1314,17 @@ h1, h2, h3, .serif { font-family: var(--serif); font-weight: 600; letter-spacing
   color: var(--text-muted);
 }
 .form-error { color: var(--danger); font-size: 0.82rem; margin: 0; min-height: 1em; font-weight: 500; }
+.overnight-hint {
+  margin: -2px 0 0;
+  padding: 8px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.overnight-hint[hidden] { display: none; }
 .modal-footer {
   display: flex;
   justify-content: flex-end;
@@ -1501,21 +1570,6 @@ h1, h2, h3, .serif { font-family: var(--serif); font-weight: 600; letter-spacing
 
 /* ============================== Companies / contests ============================== */
 
-.motivation-banner {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  color: var(--text);
-  font-family: var(--serif);
-  font-size: 1.08rem;
-  font-weight: 600;
-  font-style: italic;
-  line-height: 1.45;
-  padding: 18px 20px;
-  border-radius: var(--radius-lg);
-  margin-bottom: 16px;
-  box-shadow: var(--shadow-xs);
-}
 
 .contest-section {
   background: var(--surface);
@@ -1573,4 +1627,97 @@ h1, h2, h3, .serif { font-family: var(--serif); font-weight: 600; letter-spacing
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   flex: 0 0 auto;
+}
+
+/* ============================== Meal planner ============================== */
+
+/* A week of days, each a card of four slots. One column on a phone, two once
+   there is room — a 7-across grid would squeeze the dish names to nothing. */
+.meal-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 620px) {
+  .meal-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.meal-day {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px 12px;
+  box-shadow: var(--shadow-xs);
+}
+.meal-day.is-today {
+  border-color: var(--accent-line);
+  box-shadow: var(--shadow-sm);
+  background:
+    radial-gradient(320px circle at 90% -30%, var(--accent-soft), transparent 70%),
+    var(--surface);
+}
+/* Days already gone stay reachable but stop competing with the week ahead. */
+.meal-day.is-past { opacity: 0.55; }
+
+.meal-day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 9px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.meal-day-name {
+  font-family: var(--serif);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.meal-day.is-today .meal-day-name { color: var(--accent); }
+.meal-day-date {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The slot label is fixed-width so the four dish fields line up as a column. */
+.meal-slot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+  cursor: text;
+}
+.meal-slot-name {
+  flex: 0 0 66px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.meal-slot.is-filled .meal-slot-name { color: var(--text-muted); }
+
+.meal-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  padding: 6px 2px;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--text-faint);
+  transition: border-color 180ms var(--ease), color 180ms var(--ease);
+}
+.meal-slot.is-filled .meal-input { color: var(--text); font-weight: 500; }
+.meal-input::placeholder { color: var(--text-faint); font-style: italic; }
+.meal-input:hover { border-bottom-color: var(--border); }
+.meal-input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+  color: var(--text);
 }

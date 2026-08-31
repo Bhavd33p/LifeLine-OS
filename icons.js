@@ -17,8 +17,6 @@ const PATHS = {
   checkSquare: '<rect x="3" y="3" width="18" height="18" rx="4.5"/><path d="M8 12.4l2.8 2.8L16.2 9"/>',
   heart: '<path d="M12 20.3S4.5 15.6 4.5 10.6A4.1 4.1 0 0 1 12 8.2a4.1 4.1 0 0 1 7.5 2.4c0 5-7.5 9.7-7.5 9.7z"/>',
   code: '<path d="M9 8l-4.5 4L9 16M15 8l4.5 4L15 16"/>',
-  building: '<rect x="4.5" y="3" width="15" height="18" rx="2.5"/>'
-    + '<path d="M9 7.5h1.5M13.5 7.5H15M9 12h1.5M13.5 12H15M10.2 21v-3.6h3.6V21"/>',
   sparkle: '<path d="M12 3.2l1.9 5.4 5.4 1.9-5.4 1.9L12 17.8l-1.9-5.4L4.7 10.5l5.4-1.9z"/>',
   dumbbell: '<path d="M4 9.5v5M7.5 7v10M16.5 7v10M20 9.5v5M7.5 12h9"/>',
   chart: '<path d="M3.5 20.5h17M7.5 20.5v-7M12 20.5V6.5M16.5 20.5v-4.5"/>',
@@ -33,6 +31,8 @@ const PATHS = {
   inbox: '<path d="M3.5 13.5h4.7l1.4 2.8h4.8l1.4-2.8h4.7"/>'
     + '<path d="M5.8 5.2h12.4l2.3 8.3v4.3a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2v-4.3z"/>',
   moon: '<path d="M20 14.2A8.5 8.5 0 0 1 9.8 4 8.5 8.5 0 1 0 20 14.2z"/>',
+  utensils: '<path d="M6.5 3v6a2 2 0 0 0 4 0V3M8.5 9v12"/>'
+    + '<path d="M16.8 3c-1.6 1.5-2.3 3.5-2.3 5.5 0 1.7.8 2.8 2.3 3.1V21"/>',
 };
 
 /** Maps the built-in workspace ids to an icon. Custom workspaces fall back to
@@ -42,9 +42,9 @@ export const WORKSPACE_ICONS = {
   tasks: 'checkSquare',
   health: 'heart',
   cpdsa: 'code',
-  companies: 'building',
   skincare: 'sparkle',
   gym: 'dumbbell',
+  meals: 'utensils',
   stats: 'chart',
 };
 
