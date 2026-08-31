@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useCallback, useRef, useSyncExternalStore } from 'react';
 import type { AppState, Block, MealDay, MealSlot, Task, Workspace } from './types';
 import { todayStr } from './date';
 
@@ -194,11 +194,28 @@ export function update(fn: (draft: AppState) => void) {
   save();
 }
 
+/**
+ * A selector that derives a fresh object or array — `s => Object.keys(s.meals)`,
+ * say — would hand useSyncExternalStore a new reference on every call, and
+ * React would re-render until it threw "maximum update depth exceeded". Every
+ * mutation already swaps the top-level state object, so caching against that
+ * reference makes any selector safe to write without thinking about identity.
+ */
 export function useStore<T>(selector: (s: AppState) => T): T {
+  const cache = useRef<{ state: AppState; value: T } | null>(null);
+  const getSnapshot = useCallback(() => {
+    if (cache.current && cache.current.state === state) return cache.current.value;
+    const value = selector(state);
+    cache.current = { state, value };
+    return value;
+    // `selector` is intentionally not a dependency: call sites pass an inline
+    // arrow, so a new identity each render would defeat the cache entirely.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return useSyncExternalStore(
     (cb) => { listeners.add(cb); return () => { listeners.delete(cb); }; },
-    () => selector(state),
-    () => selector(state),
+    getSnapshot,
+    getSnapshot,
   );
 }
 
@@ -314,28 +331,31 @@ export const loadTemplateIntoDay = (dateStr: string) =>
 
 export const getMeal = (dateStr: string, slot: MealSlot) => state.meals[dateStr]?.[slot] ?? '';
 
+/**
+ * Replaces the meals map rather than mutating it. Anything selecting `s.meals`
+ * or deriving from it compares by reference, so an in-place edit would leave
+ * the dish suggestions stale and let a re-render be skipped entirely.
+ */
 export function setMeal(dateStr: string, slot: MealSlot, value: string) {
   update((s) => {
     const dish = value.trim();
-    if (dish) {
-      if (!s.meals[dateStr]) s.meals[dateStr] = {};
-      s.meals[dateStr][slot] = dish;
-      return;
-    }
-    const day: MealDay | undefined = s.meals[dateStr];
-    if (!day) return;
-    delete day[slot];
+    const meals = { ...s.meals };
+    const day: MealDay = { ...(meals[dateStr] ?? {}) };
+    if (dish) day[slot] = dish;
+    else delete day[slot];
     // Drop emptied days so the saved state doesn't accumulate an empty object
     // for every day that was ever opened.
-    if (Object.keys(day).length === 0) delete s.meals[dateStr];
+    if (Object.keys(day).length === 0) delete meals[dateStr];
+    else meals[dateStr] = day;
+    s.meals = meals;
   });
 }
 
 /** Dishes already planned, most recent first — the autocomplete list. */
-export function dishSuggestions(s: AppState) {
+export function dishSuggestions(meals: Record<string, MealDay>) {
   const seen = new Map<string, string>();
-  Object.keys(s.meals).sort().reverse().forEach((date) => {
-    const day = s.meals[date];
+  Object.keys(meals).sort().reverse().forEach((date) => {
+    const day = meals[date];
     if (!day || typeof day !== 'object') return;
     MEAL_SLOTS.forEach(([slot]) => {
       const dish = day[slot];
@@ -355,20 +375,23 @@ export function countPlannedMeals(s: AppState, days: string[]) {
 export function copyPreviousWeekMeals(days: string[]) {
   let filled = 0;
   update((s) => {
+    const meals = { ...s.meals };
     days.forEach((d) => {
+      const day: MealDay = { ...(meals[d] ?? {}) };
       MEAL_SLOTS.forEach(([slot]) => {
-        if (s.meals[d]?.[slot]) return;
+        if (day[slot]) return;
         const [y, m, dd] = d.split('-').map(Number);
         const prevDt = new Date(y, m - 1, dd);
         prevDt.setDate(prevDt.getDate() - 7);
         const prev = `${prevDt.getFullYear()}-${String(prevDt.getMonth() + 1).padStart(2, '0')}-${String(prevDt.getDate()).padStart(2, '0')}`;
-        const dish = s.meals[prev]?.[slot];
+        const dish = meals[prev]?.[slot];
         if (!dish) return;
-        if (!s.meals[d]) s.meals[d] = {};
-        s.meals[d][slot] = dish;
+        day[slot] = dish;
         filled += 1;
       });
+      if (Object.keys(day).length > 0) meals[d] = day;
     });
+    if (filled) s.meals = meals;
   });
   return filled;
 }

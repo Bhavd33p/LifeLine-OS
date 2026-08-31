@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, CopyPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 /** Rolling seven days from `start` — "the coming week" begins today, not Monday. */
 export function Meals({ start, setStart }: { start: string; setStart: (d: string) => void }) {
   const meals = useStore((s) => s.meals);
-  const suggestions = useStore(dishSuggestions);
+  const suggestions = useMemo(() => dishSuggestions(meals), [meals]);
   const today = todayStr();
 
   const days = useMemo(
@@ -73,15 +73,10 @@ export function Meals({ start, setStart }: { start: string; setStart: (d: string
                   <span className="w-16 shrink-0 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                     {label}
                   </span>
-                  <Input
-                    defaultValue={meals[date]?.[slot] ?? ''}
-                    list="dish-suggestions"
-                    placeholder="Not planned"
-                    aria-label={`${label} on ${formatDayShort(date)}`}
-                    // Committed on blur rather than per keystroke: 28 fields all
-                    // writing to storage on every character is needless churn.
-                    onBlur={(e) => setMeal(date, slot, e.target.value)}
-                    className="h-8 border-0 border-b border-transparent px-1 shadow-none focus-visible:border-ring focus-visible:ring-0"
+                  <MealInput
+                    value={meals[date]?.[slot] ?? ''}
+                    label={`${label} on ${formatDayShort(date)}`}
+                    onCommit={(v) => setMeal(date, slot, v)}
                   />
                 </label>
               ))}
@@ -90,5 +85,36 @@ export function Meals({ start, setStart }: { start: string; setStart: (d: string
         })}
       </div>
     </div>
+  );
+}
+
+/**
+ * Holds a local draft so typing stays snappy and storage is only written on
+ * blur, but adopts the stored value whenever it changes underneath — which is
+ * what "Copy last week" and an incoming cloud sync both do. An uncontrolled
+ * input with defaultValue would keep showing the old text in those cases.
+ */
+function MealInput({ value, label, onCommit }: {
+  value: string; label: string; onCommit: (v: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const focused = useRef(false);
+
+  useEffect(() => {
+    // Never yank text out from under someone mid-edit.
+    if (!focused.current) setDraft(value);
+  }, [value]);
+
+  return (
+    <Input
+      value={draft}
+      list="dish-suggestions"
+      placeholder="Not planned"
+      aria-label={label}
+      onChange={(e) => setDraft(e.target.value)}
+      onFocus={() => { focused.current = true; }}
+      onBlur={() => { focused.current = false; onCommit(draft); }}
+      className="h-8 border-0 border-b border-transparent px-1 shadow-none focus-visible:border-ring focus-visible:ring-0"
+    />
   );
 }
