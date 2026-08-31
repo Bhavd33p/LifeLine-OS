@@ -13,32 +13,40 @@ export interface QuickAddConfig {
   note?: string;
   link?: string;
   due?: string;
+  /** An optional count, labelled for the category it belongs to. */
+  quantity?: { placeholder: string; unit: string };
 }
 
 const DEFAULTS: Record<string, QuickAddConfig> = {
   content: {
-    placeholder: 'Post idea, hook or topic...',
+    placeholder: 'Post title or topic...',
     chips: { label: 'Platform', options: ['Instagram', 'X', 'LinkedIn', 'YouTube', 'Blog'] },
+    quantity: { placeholder: 'How many posts', unit: 'posts' },
     note: 'The idea — angle, hook, what it says',
-    link: 'Reference or draft link',
+    link: 'Source (src) link',
     due: 'Publish on',
   },
   openings: {
-    placeholder: 'Company and role...',
+    placeholder: 'Company name...',
     chips: { label: 'Stage', options: ['Applied', 'OA', 'Interview', 'Referral'] },
-    note: 'Notes — recruiter, referral, comp',
+    // Held as a number so applications can be sorted and compared by it rather
+    // than being a string like "24 LPA" that only reads well.
+    quantity: { placeholder: 'CTC offered (LPA)', unit: 'LPA' },
+    note: 'Role, recruiter, referral',
     link: 'Application link',
     due: 'Closes on',
   },
   cpdsa: {
-    placeholder: 'Problem or topic...',
-    chips: { label: 'Topic', options: ['DP', 'Graphs', 'Trees', 'Greedy', 'Binary search'] },
+    placeholder: 'Lecture or problem...',
+    chips: { label: 'Type', options: ['Lecture', 'Practice'] },
     link: 'Problem link',
-    due: 'Solve by',
+    due: 'Due by',
   },
   gym: {
-    placeholder: 'Workout or lift...',
-    chips: { label: 'Focus', options: ['Push', 'Pull', 'Legs', 'Cardio', 'Rest'] },
+    placeholder: 'Session name...',
+    chips: { label: 'Type', options: ['HRX workout', 'Gym', 'Dance', 'Yoga', 'Cardio'] },
+    quantity: { placeholder: 'Minutes', unit: 'min' },
+    due: 'On',
   },
   health: {
     placeholder: 'Habit or check-up...',
@@ -46,7 +54,8 @@ const DEFAULTS: Record<string, QuickAddConfig> = {
   },
   skincare: {
     placeholder: 'Step or product...',
-    chips: { label: 'When', options: ['Morning', 'Night', 'Weekly'] },
+    chips: { label: 'When', options: ['Morning', 'Afternoon', 'Night'] },
+    note: 'Product or note',
   },
   tasks: {
     placeholder: 'What needs doing...',

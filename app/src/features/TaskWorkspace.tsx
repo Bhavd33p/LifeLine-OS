@@ -107,6 +107,7 @@ function QuickAdd({ ws, labels }: { ws: Workspace; labels: string[] }) {
   const [link, setLink] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [note, setNote] = useState('');
+  const [quantity, setQuantity] = useState('');
   const config = useMemo(() => quickAddConfig(ws.id, ws.name), [ws.id, ws.name]);
   const [open, setOpen] = useState(false);
   const [justAdded, setJustAdded] = useState('');
@@ -124,12 +125,14 @@ function QuickAdd({ ws, labels }: { ws: Workspace; labels: string[] }) {
         if (!name) return;
         addTask(ws.id, name, picked, {
           priority, link: link || null, dueDate: dueDate || null, notes: note.trim(),
+          quantity: Number(quantity) > 0 ? Number(quantity) : null,
         });
         setTitle('');
         // The link and note belong to one item; the labels, priority and
         // deadline usually carry across a run of them.
         setLink('');
         setNote('');
+        setQuantity('');
         setJustAdded(name);
         // The labels and priority stay put, so a run of similar tasks goes in
         // without re-picking them each time.
@@ -175,10 +178,17 @@ function QuickAdd({ ws, labels }: { ws: Workspace; labels: string[] }) {
 
           <PriorityPicker value={priority} onChange={setPriority} />
 
-          {config.note && (
-            <Input value={note} onChange={(e) => setNote(e.target.value)}
-              placeholder={config.note} aria-label="Note" className="h-8 text-sm" />
-          )}
+          <div className={cn('grid gap-2', config.note && config.quantity ? 'grid-cols-[1fr_auto]' : 'grid-cols-1')}>
+            {config.note && (
+              <Input value={note} onChange={(e) => setNote(e.target.value)}
+                placeholder={config.note} aria-label="Note" className="h-8 text-sm" />
+            )}
+            {config.quantity && (
+              <Input value={quantity} onChange={(e) => setQuantity(e.target.value)}
+                type="number" min={1} step={1} placeholder={config.quantity.placeholder}
+                aria-label={config.quantity.placeholder} className="h-8 w-32 text-sm" />
+            )}
+          </div>
 
           {(config.link || config.due) && (
             <div className={cn('grid gap-2', config.link && config.due ? 'grid-cols-2' : 'grid-cols-1')}>
@@ -206,6 +216,7 @@ function QuickAdd({ ws, labels }: { ws: Workspace; labels: string[] }) {
 
 function TaskRow({ task: t, onEdit }: { task: Task; onEdit: () => void }) {
   const done = isTaskDoneToday(t);
+  const unit = quickAddConfig(t.workspaceId, '').quantity?.unit ?? '';
   const streak = streakOf(t);
   const prio = priorityOf(t.priority);
   return (
@@ -218,6 +229,11 @@ function TaskRow({ task: t, onEdit }: { task: Task; onEdit: () => void }) {
           {t.labels.map((l) => (
             <Badge key={l} variant="secondary" className="px-1.5 py-0 text-[10px]">{l}</Badge>
           ))}
+          {t.quantity && (
+            <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+              {t.quantity}{unit ? ` ${unit}` : ''}
+            </Badge>
+          )}
           {prio && (
             <Badge className={cn('px-1.5 py-0 text-[10px]', prio.className)}
               title={prio.definition}>

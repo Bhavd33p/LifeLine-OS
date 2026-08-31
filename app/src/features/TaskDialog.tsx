@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { PriorityPicker } from '@/components/PriorityPicker';
 import { deleteTask, normalizeLink, updateTask, useStore, type PriorityId } from '@/lib/store';
 import type { Recurrence, Task } from '@/lib/types';
+import { quickAddConfig } from '@/lib/quickAdd';
 
 export function TaskDialog({ task, onClose }: { task: Task; onClose: () => void }) {
   const allLabels = useStore((s) => s.labels);
@@ -31,6 +32,8 @@ export function TaskDialog({ task, onClose }: { task: Task; onClose: () => void 
   const [dependsOn, setDependsOn] = useState<string[]>(task.dependsOn);
   const [depQuery, setDepQuery] = useState('');
   const [workspaceId, setWorkspaceId] = useState(task.workspaceId);
+  const [quantity, setQuantity] = useState(task.quantity ? String(task.quantity) : '');
+  const quantityConfig = quickAddConfig(workspaceId, '').quantity;
 
   const toggle = (l: string) =>
     setLabels((p) => (p.includes(l) ? p.filter((x) => x !== l) : [...p, l]));
@@ -49,6 +52,7 @@ export function TaskDialog({ task, onClose }: { task: Task; onClose: () => void 
             title: name, notes, labels, priority,
             link: normalizeLink(link),
             dependsOn,
+            quantity: Number(quantity) > 0 ? Number(quantity) : null,
             estimateMinutes: Number(estimate) > 0 ? Number(estimate) : null,
             dueDate: dueDate || null,
             // A time with no date has nothing to hang off, so it is dropped.
@@ -136,6 +140,14 @@ export function TaskDialog({ task, onClose }: { task: Task; onClose: () => void 
                 A repeating task is ticked off per day and builds a streak.
               </p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="task-quantity">
+              {quantityConfig ? quantityConfig.placeholder : 'Quantity'}
+            </Label>
+            <Input id="task-quantity" type="number" min={1} step={1} value={quantity}
+              className="w-32" onChange={(e) => setQuantity(e.target.value)} />
           </div>
 
           <div className="space-y-2">

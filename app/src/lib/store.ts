@@ -169,6 +169,7 @@ export function migrate(raw: any): AppState {
     if (!Array.isArray(t.dependsOn)) t.dependsOn = [];
     t.dependsOn = t.dependsOn.filter((d) => typeof d === 'string' && d !== t.id);
     if (typeof t.estimateMinutes !== 'number' || !(t.estimateMinutes > 0)) t.estimateMinutes = null;
+    if (typeof t.quantity !== 'number' || !(t.quantity > 0)) t.quantity = null;
     if (t.recurrence === undefined) t.recurrence = 'none';
     if (!t.completions || typeof t.completions !== 'object') t.completions = {};
     if (!Array.isArray(t.labels)) t.labels = [];
@@ -307,6 +308,7 @@ export function addTask(workspaceId: string, title: string, labels: string[], ex
       link: normalizeLink(extra.link ?? null),
       dependsOn: extra.dependsOn ?? [],
       estimateMinutes: extra.estimateMinutes ?? null,
+      quantity: extra.quantity ?? null,
       recurrence: extra.recurrence ?? 'none',
       completions: {}, createdAt: Date.now(), completedAt: null,
     });

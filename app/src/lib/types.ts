@@ -27,6 +27,8 @@ export interface Task {
   dependsOn: string[];
   /** How long it is expected to take, in minutes. */
   estimateMinutes: number | null;
+  /** An optional count, whose meaning is set per category (posts, problems). */
+  quantity: number | null;
   recurrence: Recurrence;
   completions: Record<string, boolean>;
   createdAt: number;
