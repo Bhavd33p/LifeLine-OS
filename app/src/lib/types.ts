@@ -1,5 +1,5 @@
 export type WorkspaceType = 'timetable' | 'tasks' | 'stats' | 'meals';
-export type Priority = 'low' | 'medium' | 'high' | null;
+export type Priority = 'p1' | 'p2' | 'p3' | 'p4' | null;
 export type Recurrence = 'none' | 'daily' | 'weekly';
 export type MealSlot = 'breakfast' | 'lunch' | 'snacks' | 'dinner';
 

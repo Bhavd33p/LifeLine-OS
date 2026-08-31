@@ -20,6 +20,42 @@ export const DEFAULT_WORKSPACES: Workspace[] = [
   { id: 'stats', name: 'Stats', icon: '📊', system: true, type: 'stats' },
 ];
 
+/**
+ * Four priority tiers with the meaning spelled out, because "high" on its own
+ * means whatever the person reading it wants it to mean. The definition is
+ * shown next to the picker rather than living only in someone's head.
+ */
+export const PRIORITIES = [
+  { id: 'p1', label: 'P1', name: 'Now',
+    definition: 'Blocking or time-critical. Do it today, before anything else.',
+    className: 'bg-red-600 text-white border-red-600',
+    dot: 'bg-red-600' },
+  { id: 'p2', label: 'P2', name: 'Soon',
+    definition: 'Important but not blocking. Plan it into the next day or two.',
+    className: 'bg-amber-500 text-white border-amber-500',
+    dot: 'bg-amber-500' },
+  { id: 'p3', label: 'P3', name: 'Later',
+    definition: 'Normal work. Fits somewhere this week.',
+    className: 'bg-sky-600 text-white border-sky-600',
+    dot: 'bg-sky-600' },
+  { id: 'p4', label: 'P4', name: 'Someday',
+    definition: 'Nice to have. No deadline — drop it if the week fills up.',
+    className: 'bg-zinc-500 text-white border-zinc-500',
+    dot: 'bg-zinc-500' },
+] as const;
+
+export type PriorityId = typeof PRIORITIES[number]['id'];
+
+export const priorityOf = (id: string | null | undefined) =>
+  PRIORITIES.find((p) => p.id === id) ?? null;
+
+/** Rank for sorting; anything unset sorts below every explicit tier. */
+export const PRIORITY_RANK: Record<string, number> = { p1: 0, p2: 1, p3: 2, p4: 3 };
+
+// The three old tiers map onto the top three, so an existing "high" task stays
+// the most urgent thing on the list. P4 is a new tier below what existed.
+const LEGACY_PRIORITY: Record<string, PriorityId> = { high: 'p1', medium: 'p2', low: 'p3' };
+
 export const MEAL_SLOTS: [MealSlot, string][] = [
   ['breakfast', 'Breakfast'],
   ['lunch', 'Lunch'],
@@ -88,6 +124,11 @@ export function migrate(raw: any): AppState {
 
   s.tasks.forEach((t) => {
     if (t.priority === undefined) t.priority = null;
+    if (t.priority && LEGACY_PRIORITY[t.priority as string]) {
+      t.priority = LEGACY_PRIORITY[t.priority as string];
+    } else if (t.priority && !PRIORITY_RANK[t.priority]) {
+      t.priority = null;
+    }
     if (t.dueDate === undefined) t.dueDate = null;
     if (t.dueTime === undefined) t.dueTime = null;
     if (t.recurrence === undefined) t.recurrence = 'none';
