@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Check, Flame, HelpCircle, Plus, Trash2 } from 'lucide-react';
+import { Check, Flame, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,10 +8,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { EmptyState } from '@/components/EmptyState';
+import { PriorityPicker } from '@/components/PriorityPicker';
+import { TaskDialog } from './TaskDialog';
+import { Contests } from './Contests';
 import {
-  PRIORITIES, PRIORITY_RANK, type PriorityId, addTask, deleteTask, isTaskDoneToday,
+  PRIORITY_RANK, type PriorityId, addTask, isTaskDoneToday,
   priorityOf, streakOf, toggleTaskDone, useStore,
 } from '@/lib/store';
 import { formatDateLabel } from '@/lib/date';
@@ -25,6 +27,7 @@ export function TaskWorkspace({ ws }: { ws: Workspace }) {
   const labels = useStore((s) => s.labels);
   const [filter, setFilter] = useState<string | null>(null);
   const [sort, setSort] = useState<SortMode>('recent');
+  const [editing, setEditing] = useState<Task | null>(null);
 
   const mine = useMemo(() => tasks.filter((t) => t.workspaceId === ws.id), [tasks, ws.id]);
   const shown = useMemo(() => {
@@ -47,6 +50,7 @@ export function TaskWorkspace({ ws }: { ws: Workspace }) {
 
   return (
     <div className="space-y-4">
+      {ws.id === 'cpdsa' && <Contests />}
       <QuickAdd ws={ws} labels={labels} />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -66,6 +70,8 @@ export function TaskWorkspace({ ws }: { ws: Workspace }) {
         </Select>
       </div>
 
+      {editing && <TaskDialog task={editing} onClose={() => setEditing(null)} />}
+
       {shown.length === 0 ? (
         <EmptyState
           title={filter ? `Nothing labelled ${filter}` : `No tasks in ${ws.name} yet`}
@@ -73,7 +79,7 @@ export function TaskWorkspace({ ws }: { ws: Workspace }) {
         />
       ) : (
         <div className="space-y-2">
-          {shown.map((t) => <TaskRow key={t.id} task={t} />)}
+          {shown.map((t) => <TaskRow key={t.id} task={t} onEdit={() => setEditing(t)} />)}
         </div>
       )}
     </div>
@@ -103,7 +109,7 @@ function QuickAdd({ ws, labels }: { ws: Workspace; labels: string[] }) {
 
   const toggle = (l: string) =>
     setPicked((p) => (p.includes(l) ? p.filter((x) => x !== l) : [...p, l]));
-  const chosen = priorityOf(priority);
+
 
   return (
     <Card className="gap-3 p-3">
@@ -134,57 +140,7 @@ function QuickAdd({ ws, labels }: { ws: Workspace; labels: string[] }) {
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              Priority
-            </span>
-            {PRIORITIES.map((p) => {
-              const active = priority === p.id;
-              return (
-                <button key={p.id} type="button"
-                  aria-pressed={active}
-                  title={`${p.label} — ${p.name}: ${p.definition}`}
-                  onClick={() => setPriority(active ? null : p.id)}
-                  className={cn(
-                    'rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors',
-                    active ? p.className : 'border-border text-muted-foreground hover:bg-accent',
-                  )}>
-                  {p.label}
-                </button>
-              );
-            })}
-
-            {/* Definitions have to be reachable before you have picked one,
-                and there is no hover on a phone. */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" className="size-6"
-                  aria-label="What do P1 to P4 mean?">
-                  <HelpCircle className="size-3.5" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-72">
-                <p className="mb-2 text-xs font-semibold">What the tiers mean</p>
-                <ul className="space-y-2">
-                  {PRIORITIES.map((p) => (
-                    <li key={p.id} className="flex gap-2">
-                      <span className={cn('mt-1 size-2 shrink-0 rounded-full', p.dot)} aria-hidden />
-                      <span className="text-xs">
-                        <b>{p.label} · {p.name}</b>
-                        <span className="block text-muted-foreground">{p.definition}</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {chosen && (
-            <p className="text-xs text-muted-foreground">
-              <b className="text-foreground">{chosen.label} · {chosen.name}</b> — {chosen.definition}
-            </p>
-          )}
+          <PriorityPicker value={priority} onChange={setPriority} />
         </div>
       )}
 
@@ -197,14 +153,15 @@ function QuickAdd({ ws, labels }: { ws: Workspace; labels: string[] }) {
   );
 }
 
-function TaskRow({ task: t }: { task: Task }) {
+function TaskRow({ task: t, onEdit }: { task: Task; onEdit: () => void }) {
   const done = isTaskDoneToday(t);
   const streak = streakOf(t);
   const prio = priorityOf(t.priority);
   return (
     <Card className={cn('flex-row items-center gap-3 p-3', done && 'opacity-60')}>
       <Checkbox checked={done} onCheckedChange={() => toggleTaskDone(t.id)} aria-label={t.title} />
-      <div className="min-w-0 flex-1">
+      <button type="button" onClick={onEdit}
+        className="min-w-0 flex-1 rounded text-left" aria-label={`Edit ${t.title}`}>
         <div className={cn('text-sm font-medium break-words', done && 'line-through')}>{t.title}</div>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           {t.labels.map((l) => (
@@ -225,11 +182,7 @@ function TaskRow({ task: t }: { task: Task }) {
             </span>
           )}
         </div>
-      </div>
-      <Button variant="ghost" size="icon" className="size-8 shrink-0" aria-label="Delete task"
-        onClick={() => { if (confirm(`Delete “${t.title}”?`)) deleteTask(t.id); }}>
-        <Trash2 className="size-4" />
-      </Button>
+      </button>
     </Card>
   );
 }

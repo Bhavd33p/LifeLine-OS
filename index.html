@@ -4,44 +4,18 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Personal OS</title>
-<meta name="description" content="A local-first personal operating system: workspaces, labeled tasks, and a linked timetable." />
-<meta name="theme-color" content="#FAF5EE" media="(prefers-color-scheme: light)" />
-<meta name="theme-color" content="#1A1714" media="(prefers-color-scheme: dark)" />
+<meta name="description" content="A local-first personal operating system: workspaces, labeled tasks, a linked timetable and a week of meals." />
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#09090b" media="(prefers-color-scheme: dark)" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Personal OS" />
-<link rel="apple-touch-icon" href="icons/icon-180.png" />
-<link rel="icon" href="icons/icon-192.png" />
-<link rel="manifest" href="manifest.json" />
-<link rel="stylesheet" href="styles.css" />
+<link rel="apple-touch-icon" href="./icons/icon-180.png" />
+<link rel="icon" href="./icons/icon-192.png" />
+<link rel="manifest" href="./manifest.json" />
+  <script type="module" crossorigin src="./assets/index-BWC356kv.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-EyUa0sJD.css">
 </head>
 <body>
-<div id="app">
-  <nav id="sidebar" class="sidebar" aria-label="Workspaces"></nav>
-
-  <header class="topbar">
-    <div class="topbar-titles">
-      <h1 class="app-title" id="viewTitle">Personal OS</h1>
-      <div class="app-subtitle" id="viewSubtitle"></div>
-    </div>
-    <div class="topbar-actions">
-      <button id="searchBtn" class="icon-btn" aria-label="Search" title="Search"></button>
-      <button id="settingsBtn" class="icon-btn" aria-label="Settings" title="Settings"></button>
-    </div>
-  </header>
-
-  <div id="nudgeBanner" class="nudge-banner" role="status"></div>
-
-  <nav id="workspaceNav" class="workspace-nav" aria-label="Workspaces"></nav>
-
-  <main id="content" class="content"></main>
-</div>
-
-<button id="fab" class="fab" aria-label="Add" title="Add"></button>
-<nav id="tabbar" class="tabbar" aria-label="Primary"></nav>
-
-<div id="modalRoot"></div>
-
-<script type="module" src="app.js"></script>
+<div id="root"></div>
 </body>
 </html>

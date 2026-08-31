@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Settings as SettingsIcon } from 'lucide-react';
+import { LayoutGrid, Search, Settings as SettingsIcon } from 'lucide-react';
 import { Toaster } from '@/components/ui/sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,11 +10,14 @@ import { TaskWorkspace } from '@/features/TaskWorkspace';
 import { Meals } from '@/features/Meals';
 import { Stats } from '@/features/Stats';
 import { SettingsDialog } from '@/features/SettingsDialog';
+import { SearchDialog } from '@/features/SearchDialog';
+import { WorkspacesDialog } from '@/features/WorkspacesDialog';
 import { LAST_WORKSPACE_KEY, MEAL_SLOTS, countPlannedMeals, isTaskDoneToday, useStore } from '@/lib/store';
 import { addDaysStr, todayStr } from '@/lib/date';
 import { workspaceIcon } from '@/lib/icons';
 import { useTheme } from '@/lib/useTheme';
 import { useSync } from '@/lib/useSync';
+import { useAlarms } from '@/lib/useAlarms';
 import { cn } from '@/lib/utils';
 
 export default function App() {
@@ -29,6 +32,9 @@ export default function App() {
   const [ttDate, setTtDate] = useState(todayStr);
   const [mealStart, setMealStart] = useState(todayStr);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [wsOpen, setWsOpen] = useState(false);
+  useAlarms();
 
   // A stale stored id used to blank the screen; fall back to the first tab.
   const ws = workspaces.find((w) => w.id === wsId) ?? workspaces[0];
@@ -36,6 +42,11 @@ export default function App() {
   useEffect(() => {
     if (ws) localStorage.setItem(LAST_WORKSPACE_KEY, ws.id);
   }, [ws]);
+
+  const tomorrow = addDaysStr(todayStr(), 1);
+  const tomorrowPlanned = state.blocks.some((b) => b.date === tomorrow);
+  // Not worth saying when you are already looking at tomorrow.
+  const onTomorrow = ws?.type === 'timetable' && ttDate === tomorrow;
 
   const subtitle = useMemo(() => {
     if (!ws) return '';
@@ -69,10 +80,26 @@ export default function App() {
             Sync paused
           </span>
         )}
+        <Button variant="ghost" size="icon" aria-label="Search" onClick={() => setSearchOpen(true)}>
+          <Search />
+        </Button>
+        <Button variant="ghost" size="icon" aria-label="Manage workspaces" onClick={() => setWsOpen(true)}>
+          <LayoutGrid />
+        </Button>
         <Button variant="ghost" size="icon" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
           <SettingsIcon />
         </Button>
       </header>
+
+      {!tomorrowPlanned && !onTomorrow && (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border bg-muted/50 px-3 py-2 text-sm">
+          <span>Tomorrow's timetable isn't planned yet.</span>
+          <Button size="sm" variant="secondary" onClick={() => {
+            setTtDate(tomorrow);
+            setWsId('timetable');
+          }}>Plan it</Button>
+        </div>
+      )}
 
       <main className="py-4">
         {ws.type === 'timetable' && <Timetable date={ttDate} setDate={setTtDate} />}
@@ -104,6 +131,14 @@ export default function App() {
 
       {settingsOpen && (
         <SettingsDialog onClose={() => setSettingsOpen(false)} sync={sync} uploadNow={uploadNow} />
+      )}
+      {wsOpen && <WorkspacesDialog onClose={() => setWsOpen(false)} />}
+      {searchOpen && (
+        <SearchDialog onClose={() => setSearchOpen(false)} onPick={(target) => {
+          if ('workspaceId' in target) { setWsId(target.workspaceId); return; }
+          setTtDate(target.timetableDate);
+          setWsId('timetable');
+        }} />
       )}
 
       {sync.conflict && (

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -43,6 +44,13 @@ export function SettingsDialog({ onClose, sync, uploadNow }: {
             </SelectContent>
           </Select>
         </div>
+
+        <Separator />
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold">Reminders</h3>
+          <Alarms />
+        </section>
 
         <Separator />
 
@@ -134,6 +142,50 @@ export function SettingsDialog({ onClose, sync, uploadNow }: {
         </section>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function Alarms() {
+  const alarms = useStore((s) => s.settings.alarms);
+  const [permission, setPermission] = useState(
+    typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
+  );
+
+  if (permission === 'unsupported') {
+    return <p className="text-sm text-muted-foreground">This browser can't show notifications.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {permission !== 'granted' && (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Reminders need notification permission. They fire only while the app is open.
+          </p>
+          <Button size="sm" variant="outline" onClick={async () => {
+            setPermission(await Notification.requestPermission());
+          }}>Allow notifications</Button>
+        </div>
+      )}
+
+      {alarms.map((a) => (
+        <div key={a.id} className="flex items-center gap-3">
+          <Checkbox checked={a.enabled} aria-label={a.label}
+            onCheckedChange={(v) => update((s) => {
+              const target = s.settings.alarms.find((x) => x.id === a.id);
+              if (target) target.enabled = v === true;
+            })} />
+          <span className="min-w-0 flex-1 text-sm">{a.label}</span>
+          <Input type="time" value={a.time} className="h-8 w-28"
+            aria-label={`Time for ${a.label}`}
+            onChange={(e) => update((s) => {
+              const target = s.settings.alarms.find((x) => x.id === a.id);
+              // An empty time would never match and the alarm would go silent.
+              if (target && e.target.value) target.time = e.target.value;
+            })} />
+        </div>
+      ))}
+    </div>
   );
 }
 
