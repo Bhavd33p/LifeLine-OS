@@ -75,11 +75,7 @@ export default function App() {
           <h1 className="truncate text-lg font-semibold tracking-tight">{ws.name}</h1>
           <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
         </div>
-        {sync.error && (
-          <span className="rounded-full bg-destructive/10 px-2 py-1 text-[10px] font-medium text-destructive">
-            Sync paused
-          </span>
-        )}
+        <SyncBadge sync={sync} onOpenSettings={() => setSettingsOpen(true)} />
         <Button variant="ghost" size="icon" aria-label="Search" onClick={() => setSearchOpen(true)}>
           <Search />
         </Button>
@@ -171,5 +167,40 @@ export default function App() {
 
       <Toaster position="top-center" richColors />
     </div>
+  );
+}
+
+/**
+ * Whether this device is signed in, said plainly and always on screen.
+ *
+ * Sync failing silently is what let a phone's timetable sit unsynced for days,
+ * so the three states are distinct: signed in, working locally only, and
+ * signed in but not currently syncing. Tapping opens Settings, which is where
+ * every one of them is acted on.
+ */
+function SyncBadge({ sync, onOpenSettings }: {
+  sync: ReturnType<typeof useSync>['status'];
+  onOpenSettings: () => void;
+}) {
+  const state = sync.error ? 'error' : sync.user ? 'on' : 'off';
+  const label = state === 'error' ? 'Sync paused' : state === 'on' ? 'Synced' : 'Local only';
+  const title = state === 'error'
+    ? `Signed in, but not syncing: ${sync.error}`
+    : state === 'on'
+      ? `Signed in as ${sync.user.email}. Changes reach your other devices.`
+      : 'Not signed in — everything stays on this device. Tap to sign in.';
+
+  return (
+    <button type="button" onClick={onOpenSettings} title={title} aria-label={title}
+      className={cn(
+        'flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors',
+        state === 'error' && 'bg-destructive/10 text-destructive hover:bg-destructive/20',
+        state === 'on' && 'bg-muted text-muted-foreground hover:bg-accent',
+        state === 'off' && 'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 dark:text-amber-400',
+      )}>
+      <span className={cn('size-1.5 rounded-full',
+        state === 'error' ? 'bg-destructive' : state === 'on' ? 'bg-emerald-500' : 'bg-amber-500')} />
+      {label}
+    </button>
   );
 }
