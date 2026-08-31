@@ -325,6 +325,47 @@ export const addBlock = (
     s.blocks.push({ id: uid(), date, title, start, end, taskIds, reminder, status: null, subtasks: [] });
   });
 
+/** Monday-based weekday index for a date string: Mon = 0 ... Sun = 6. */
+export function weekdayOf(dateStr: string) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return (new Date(y, m - 1, d).getDay() + 6) % 7;
+}
+
+/**
+ * Writes the same block onto every matching day for a stretch of weeks, so a
+ * daily fixture like a workout is planned once rather than seven times.
+ *
+ * Real blocks are created rather than a recurrence rule evaluated on the fly:
+ * each day can then be edited, marked done or deleted on its own, which is the
+ * whole point of a planner. A day that already holds this block at this time is
+ * skipped, so re-running it to extend a plan never doubles anything up.
+ */
+export function addRepeatingBlocks(
+  startDate: string,
+  title: string,
+  start: string,
+  end: string,
+  taskIds: string[],
+  reminder: boolean,
+  weekdays: number[],
+  weeks: number,
+) {
+  let created = 0;
+  update((s) => {
+    for (let i = 0; i < weeks * 7; i += 1) {
+      const date = addDaysStr(startDate, i);
+      if (!weekdays.includes(weekdayOf(date))) continue;
+      if (s.blocks.some((b) => b.date === date && b.start === start && b.title === title)) continue;
+      s.blocks.push({
+        id: uid(), date, title, start, end,
+        taskIds: [...taskIds], reminder, status: null, subtasks: [],
+      });
+      created += 1;
+    }
+  });
+  return created;
+}
+
 export const toggleBlockReminder = (id: string) =>
   update((s) => {
     const b = s.blocks.find((x) => x.id === id);

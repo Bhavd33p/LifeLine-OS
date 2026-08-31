@@ -8,11 +8,24 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  addBlock, deleteBlock, isTaskDoneToday, priorityOf, updateBlock, useStore,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  addBlock, addRepeatingBlocks, deleteBlock, isTaskDoneToday, priorityOf, updateBlock,
+  useStore, weekdayOf,
 } from '@/lib/store';
-import { formatDuration, formatTime12, minutesOf } from '@/lib/date';
+import { formatDateLabel, formatDuration, formatTime12, minutesOf } from '@/lib/date';
+import { toast } from 'sonner';
 import type { Block } from '@/lib/types';
 import { cn } from '@/lib/utils';
+
+type RepeatMode = 'none' | 'daily' | 'weekdays' | 'weekends' | 'custom';
+
+const WEEKDAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const FULL_WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
+const WEEKDAYS = [0, 1, 2, 3, 4];
+const WEEKENDS = [5, 6];
 
 export function BlockDialog({ date, block, onClose }: {
   date: string; block: Block | null; onClose: () => void;
@@ -24,6 +37,11 @@ export function BlockDialog({ date, block, onClose }: {
   const [end, setEnd] = useState(block?.end ?? '10:00');
   const [taskIds, setTaskIds] = useState<string[]>(block?.taskIds ?? []);
   const [reminder, setReminder] = useState(block?.reminder ?? false);
+  // Repeat only applies when creating: editing one day of an existing run and
+  // silently rewriting the others would be a surprise, not a convenience.
+  const [repeat, setRepeat] = useState<RepeatMode>('none');
+  const [customDays, setCustomDays] = useState<number[]>([weekdayOf(date)]);
+  const [weeks, setWeeks] = useState(4);
   const [taskQuery, setTaskQuery] = useState('');
   const [error, setError] = useState('');
 
@@ -45,6 +63,12 @@ export function BlockDialog({ date, block, onClose }: {
   const toggleTask = (id: string) =>
     setTaskIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
+  const days = repeat === 'daily' ? ALL_DAYS
+    : repeat === 'weekdays' ? WEEKDAYS
+    : repeat === 'weekends' ? WEEKENDS
+    : repeat === 'custom' ? customDays
+    : [];
+
   const sMin = minutesOf(start);
   const eMin = minutesOf(end);
   // An end before the start is not an error — it means the block runs past
@@ -56,8 +80,20 @@ export function BlockDialog({ date, block, onClose }: {
     const name = title.trim();
     if (!name || !start || !end) return;
     if (start === end) { setError('Start and end time cannot be the same.'); return; }
-    if (block) updateBlock(block.id, { title: name, start, end, taskIds, reminder });
-    else addBlock(date, name, start, end, taskIds, reminder);
+    if (repeat !== 'none' && days.length === 0) {
+      setError('Pick at least one day to repeat on.');
+      return;
+    }
+    if (block) {
+      updateBlock(block.id, { title: name, start, end, taskIds, reminder });
+    } else if (repeat === 'none') {
+      addBlock(date, name, start, end, taskIds, reminder);
+    } else {
+      const created = addRepeatingBlocks(date, name, start, end, taskIds, reminder, days, weeks);
+      toast.success(created === 1
+        ? 'Added 1 block.'
+        : `Added ${created} blocks over ${weeks} week${weeks === 1 ? '' : 's'}.`);
+    }
     onClose();
   }
 
@@ -139,6 +175,64 @@ export function BlockDialog({ date, block, onClose }: {
               {' · '}{formatDuration(eMin + 1440 - sMin)}
             </p>
           )}
+          {!block && (
+            <div className="space-y-2">
+              <Label>Repeat</Label>
+              <Select value={repeat} onValueChange={(v) => setRepeat(v as RepeatMode)}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Just this day</SelectItem>
+                  <SelectItem value="daily">Every day</SelectItem>
+                  <SelectItem value="weekdays">Weekdays (Mon–Fri)</SelectItem>
+                  <SelectItem value="weekends">Weekends</SelectItem>
+                  <SelectItem value="custom">Chosen days</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {repeat === 'custom' && (
+                <div className="flex flex-wrap gap-1.5">
+                  {WEEKDAY_LABELS.map((label, i) => {
+                    const on = customDays.includes(i);
+                    return (
+                      <button key={i} type="button" aria-pressed={on}
+                        aria-label={FULL_WEEKDAYS[i]}
+                        onClick={() => setCustomDays((p) =>
+                          p.includes(i) ? p.filter((x) => x !== i) : [...p, i])}
+                        className={cn(
+                          'size-9 rounded-full border text-xs font-semibold transition-colors',
+                          on ? 'border-primary bg-primary text-primary-foreground'
+                             : 'border-border text-muted-foreground hover:bg-accent',
+                        )}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {repeat !== 'none' && (
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="repeat-weeks" className="shrink-0">for</Label>
+                  <Input id="repeat-weeks" type="number" min={1} max={26} value={weeks}
+                    onChange={(e) => setWeeks(Math.min(26, Math.max(1, Number(e.target.value) || 1)))}
+                    className="h-8 w-20" />
+                  <span className="text-sm text-muted-foreground">
+                    week{weeks === 1 ? '' : 's'} from {formatDateLabel(date)}
+                  </span>
+                </div>
+              )}
+
+              {repeat !== 'none' && (
+                <p className="text-xs text-muted-foreground">
+                  {days.length === 0
+                    ? 'Pick at least one day.'
+                    : `Creates up to ${days.length * weeks} blocks. Days that already have `
+                      + `“${title.trim() || 'this block'}” at ${formatTime12(start)} are skipped.`}
+                </p>
+              )}
+            </div>
+          )}
+
           <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
             <Checkbox checked={reminder} onCheckedChange={(v) => setReminder(v === true)}
               className="mt-0.5" />
