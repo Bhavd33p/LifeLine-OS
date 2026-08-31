@@ -9,6 +9,7 @@ import { Timetable } from '@/features/Timetable';
 import { TaskWorkspace } from '@/features/TaskWorkspace';
 import { Meals } from '@/features/Meals';
 import { Stats } from '@/features/Stats';
+import { Finance } from '@/features/Finance';
 import { SettingsDialog } from '@/features/SettingsDialog';
 import { SearchDialog } from '@/features/SearchDialog';
 import { WorkspacesDialog } from '@/features/WorkspacesDialog';
@@ -55,6 +56,10 @@ export default function App() {
       return n ? `${n} block${n === 1 ? '' : 's'} planned` : 'Nothing planned';
     }
     if (ws.type === 'stats') return 'Your last 7 days';
+    if (ws.type === 'finance') {
+      const n = state.money.length;
+      return n ? `${n} entr${n === 1 ? 'y' : 'ies'} tracked` : 'Nothing tracked yet';
+    }
     if (ws.type === 'meals') {
       const days = Array.from({ length: 7 }, (_, i) => addDaysStr(mealStart, i));
       const planned = countPlannedMeals(state, days);
@@ -105,6 +110,7 @@ export default function App() {
         {ws.type === 'timetable' && <Timetable date={ttDate} setDate={setTtDate} />}
         {ws.type === 'tasks' && <TaskWorkspace ws={ws} />}
         {ws.type === 'meals' && <Meals start={mealStart} setStart={setMealStart} />}
+        {ws.type === 'finance' && <Finance />}
         {ws.type === 'stats' && <Stats />}
       </main>
 
@@ -188,10 +194,17 @@ function SyncBadge({ sync, onOpenSettings }: {
 }) {
   const state = sync.error ? 'error' : sync.user ? 'on' : 'off';
   const label = state === 'error' ? 'Sync paused' : state === 'on' ? 'Synced' : 'Local only';
+  // Being signed in is not the whole story: if the browser has not promised to
+  // keep this app's storage, the session is the thing that gets evicted.
+  const durability = sync.storage === 'persisted'
+    ? ' Storage is persistent, so this device stays signed in.'
+    : sync.storage === 'unknown' ? ''
+      : ' This browser may clear the app after a week unused — open it from the home screen icon.';
+
   const title = state === 'error'
     ? `Signed in, but not syncing: ${sync.error}`
     : state === 'on'
-      ? `Signed in as ${sync.user.email}. Changes reach your other devices.`
+      ? `Signed in as ${sync.user.email}. Changes reach your other devices.${durability}`
       : 'Not signed in — everything stays on this device. Tap to sign in.';
 
   return (

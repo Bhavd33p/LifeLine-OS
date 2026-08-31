@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Trash2 } from 'lucide-react';
-import { uid, update, useStore } from '@/lib/store';
+import { Trash2, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { addLabel, removeLabel, uid, update, useStore } from '@/lib/store';
 import { workspaceIcon } from '@/lib/icons';
 
 export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
@@ -62,6 +63,10 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
 
         <Separator />
 
+        <Labels />
+
+        <Separator />
+
         <form className="space-y-3" onSubmit={(e) => {
           e.preventDefault();
           const label = name.trim();
@@ -88,5 +93,52 @@ export function WorkspacesDialog({ onClose }: { onClose: () => void }) {
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Labels are shared across every workspace, which is what makes them useful for
+ * something cutting across them — a platform like Instagram or X, say, tagged
+ * on posts in Content and on anything related elsewhere.
+ */
+function Labels() {
+  const labels = useStore((s) => s.labels);
+  const tasks = useStore((s) => s.tasks);
+  const [name, setName] = useState('');
+
+  return (
+    <section className="space-y-2">
+      <Label htmlFor="label-name">Labels</Label>
+      <div className="flex flex-wrap gap-1.5">
+        {labels.map((l) => {
+          const used = tasks.filter((t) => t.labels.includes(l)).length;
+          return (
+            <Badge key={l} variant="secondary" className="gap-1 pr-1">
+              {l}
+              <button type="button" aria-label={`Remove the ${l} label`}
+                className="rounded-full p-0.5 hover:bg-background/60"
+                onClick={() => {
+                  if (used && !confirm(`Remove “${l}” from ${used} task${used === 1 ? '' : 's'}?`)) return;
+                  removeLabel(l);
+                }}>
+                <X className="size-3" />
+              </button>
+            </Badge>
+          );
+        })}
+      </div>
+      <form className="flex gap-2" onSubmit={(e) => {
+        e.preventDefault();
+        if (!addLabel(name)) {
+          if (name.trim()) toast.error(`“${name.trim()}” already exists.`);
+          return;
+        }
+        setName('');
+      }}>
+        <Input id="label-name" value={name} onChange={(e) => setName(e.target.value)}
+          placeholder="Instagram, X, LinkedIn..." className="h-8" />
+        <Button type="submit" size="sm" variant="outline">Add</Button>
+      </form>
+    </section>
   );
 }

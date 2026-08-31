@@ -1,5 +1,7 @@
 import { useCallback, useRef, useSyncExternalStore } from 'react';
-import type { AppState, Block, BlockStatus, MealDay, MealSlot, Task, Workspace } from './types';
+import type {
+  AppState, Block, BlockStatus, MealDay, MealSlot, MoneyEntry, MoneyKind, Task, Workspace,
+} from './types';
 import { addDaysStr, todayStr } from './date';
 
 // Unchanged from the vanilla app on purpose: the rewrite reads the data that is
@@ -16,7 +18,9 @@ export const DEFAULT_WORKSPACES: Workspace[] = [
   { id: 'cpdsa', name: 'CP / DSA', icon: '💻', system: true, type: 'tasks' },
   { id: 'skincare', name: 'Skincare', icon: '✨', system: true, type: 'tasks' },
   { id: 'gym', name: 'Gym', icon: '🏋️', system: true, type: 'tasks' },
+  { id: 'content', name: 'Content', icon: '📣', system: true, type: 'tasks' },
   { id: 'openings', name: 'Openings', icon: '💼', system: true, type: 'tasks' },
+  { id: 'finance', name: 'Finance', icon: '💰', system: true, type: 'finance' },
   { id: 'meals', name: 'Meals', icon: '🍳', system: true, type: 'meals' },
   { id: 'stats', name: 'Stats', icon: '📊', system: true, type: 'stats' },
 ];
@@ -26,20 +30,24 @@ export const DEFAULT_WORKSPACES: Workspace[] = [
  * means whatever the person reading it wants it to mean. The definition is
  * shown next to the picker rather than living only in someone's head.
  */
+/**
+ * Named in plain words rather than P1..P4, which meant nothing without the
+ * legend. The ids stay p1..p4 so stored tasks need no migration.
+ */
 export const PRIORITIES = [
-  { id: 'p1', label: 'P1', name: 'Now',
+  { id: 'p1', label: 'Urgent',
     definition: 'Blocking or time-critical. Do it today, before anything else.',
     className: 'bg-red-600 text-white border-red-600',
     dot: 'bg-red-600' },
-  { id: 'p2', label: 'P2', name: 'Soon',
-    definition: 'Important but not blocking. Plan it into the next day or two.',
+  { id: 'p2', label: 'Important',
+    definition: 'Matters, but nothing is blocked on it. Plan it into the next day or two.',
     className: 'bg-amber-500 text-white border-amber-500',
     dot: 'bg-amber-500' },
-  { id: 'p3', label: 'P3', name: 'Later',
-    definition: 'Normal work. Fits somewhere this week.',
+  { id: 'p3', label: 'Upcoming',
+    definition: 'Normal work with a date approaching. Fits somewhere this week.',
     className: 'bg-sky-600 text-white border-sky-600',
     dot: 'bg-sky-600' },
-  { id: 'p4', label: 'P4', name: 'Someday',
+  { id: 'p4', label: 'Someday',
     definition: 'Nice to have. No deadline — drop it if the week fills up.',
     className: 'bg-zinc-500 text-white border-zinc-500',
     dot: 'bg-zinc-500' },
@@ -78,6 +86,7 @@ export function defaultState(): AppState {
     template: [],
     labels: [...DEFAULT_LABELS],
     meals: {},
+    money: [],
     settings: {
       theme: 'system',
       alarms: [
@@ -100,6 +109,9 @@ export function migrate(raw: any): AppState {
   if (!Array.isArray(s.labels)) s.labels = [...DEFAULT_LABELS];
   if (!Array.isArray(s.template)) s.template = [];
   if (!s.meals || typeof s.meals !== 'object' || Array.isArray(s.meals)) s.meals = {};
+  if (!Array.isArray(s.money)) s.money = [];
+  s.money = s.money.filter((m) => m && typeof m === 'object' && m.id
+    && Number.isFinite(m.amount) && m.amount > 0);
 
   s.workspaces = s.workspaces.filter((w) => w && typeof w === 'object' && w.id);
   s.tasks = s.tasks.filter((t) => t && typeof t === 'object' && t.id);
@@ -111,6 +123,17 @@ export function migrate(raw: any): AppState {
 
   if (!s.workspaces.some((w) => w.id === 'stats')) {
     s.workspaces.push({ id: 'stats', name: 'Stats', icon: '📊', system: true, type: 'stats' });
+  }
+  if (!s.workspaces.some((w) => w.id === 'content')) {
+    const openingsIdx = s.workspaces.findIndex((w) => w.id === 'openings');
+    const statsIdx = s.workspaces.findIndex((w) => w.id === 'stats');
+    const at = openingsIdx !== -1 ? openingsIdx : statsIdx !== -1 ? statsIdx : s.workspaces.length;
+    s.workspaces.splice(at, 0, { id: 'content', name: 'Content', icon: '📣', system: true, type: 'tasks' });
+  }
+  if (!s.workspaces.some((w) => w.id === 'finance')) {
+    const statsIdx = s.workspaces.findIndex((w) => w.id === 'stats');
+    const at = statsIdx === -1 ? s.workspaces.length : statsIdx;
+    s.workspaces.splice(at, 0, { id: 'finance', name: 'Finance', icon: '💰', system: true, type: 'finance' });
   }
   if (!s.workspaces.some((w) => w.id === 'openings')) {
     // Before Meals, keeping the work-ish workspaces together.
@@ -289,6 +312,26 @@ export function addTask(workspaceId: string, title: string, labels: string[], ex
     });
   });
 }
+
+export function addLabel(name: string) {
+  const label = name.trim();
+  if (!label) return false;
+  let added = false;
+  update((s) => {
+    // Case-insensitive, so "Instagram" and "instagram" do not both appear.
+    if (s.labels.some((l) => l.toLowerCase() === label.toLowerCase())) return;
+    s.labels.push(label);
+    added = true;
+  });
+  return added;
+}
+
+export const removeLabel = (label: string) =>
+  update((s) => {
+    s.labels = s.labels.filter((l) => l !== label);
+    // Strip it from every task too, or filters would offer a label nothing has.
+    s.tasks.forEach((t) => { t.labels = t.labels.filter((l) => l !== label); });
+  });
 
 export const updateTask = (id: string, patch: Partial<Task>) =>
   update((s) => { const t = s.tasks.find((x) => x.id === id); if (t) Object.assign(t, patch); });
@@ -480,6 +523,102 @@ export const loadTemplateIntoDay = (dateStr: string) =>
       });
     });
   });
+
+/* -------------------------------- finance -------------------------------- */
+
+/** Categories per kind — an investment is not filed under "Food". */
+export const MONEY_CATEGORIES: Record<MoneyKind, string[]> = {
+  expense: ['Food', 'Rent', 'Travel', 'Bills', 'Shopping', 'Health', 'Fees', 'Subscriptions', 'Other'],
+  income: ['Salary', 'Freelance', 'Refund', 'Interest', 'Other'],
+  investment: ['Mutual funds', 'Stocks', 'SIP', 'PPF / EPF', 'Gold', 'Crypto', 'Fixed deposit', 'Other'],
+};
+
+export const MONEY_KINDS: { id: MoneyKind; label: string }[] = [
+  { id: 'expense', label: 'Spent' },
+  { id: 'income', label: 'Received' },
+  { id: 'investment', label: 'Invested' },
+];
+
+export const addMoney = (
+  date: string, amount: number, kind: MoneyKind, category: string, note: string,
+) => update((s) => {
+  s.money = [
+    { id: uid(), date, amount: Math.abs(amount), kind, category, note },
+    ...s.money,
+  ];
+});
+
+export const deleteMoney = (id: string) =>
+  update((s) => { s.money = s.money.filter((m) => m.id !== id); });
+
+/** 'YYYY-MM' for a date string, which is how the ledger is grouped. */
+export const monthOf = (dateStr: string) => dateStr.slice(0, 7);
+
+export interface MonthSummary {
+  income: number;
+  expense: number;
+  invested: number;
+  /** What is left after spending and investing. */
+  net: number;
+  spentByCategory: { category: string; total: number }[];
+  investedByCategory: { category: string; total: number }[];
+  /** Spend per day, oldest first, for the daily view. */
+  perDay: { date: string; total: number }[];
+  busiestDay: { date: string; total: number } | null;
+  daysWithSpend: number;
+  entries: MoneyEntry[];
+}
+
+const sumBy = (entries: MoneyEntry[], kind: MoneyKind) =>
+  entries.filter((m) => m.kind === kind).reduce((a, m) => a + m.amount, 0);
+
+function groupByCategory(entries: MoneyEntry[], kind: MoneyKind) {
+  const totals = new Map<string, number>();
+  entries.filter((m) => m.kind === kind).forEach((m) => {
+    totals.set(m.category, (totals.get(m.category) ?? 0) + m.amount);
+  });
+  return [...totals.entries()]
+    .map(([category, total]) => ({ category, total }))
+    .sort((a, b) => b.total - a.total);
+}
+
+export function summariseMonth(s: AppState, month: string): MonthSummary {
+  const entries = s.money
+    .filter((m) => monthOf(m.date) === month)
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  const income = sumBy(entries, 'income');
+  const expense = sumBy(entries, 'expense');
+  const invested = sumBy(entries, 'investment');
+
+  // Every day of the month gets a row, including the ones with nothing on
+  // them: a gap in the bars is itself worth seeing.
+  const [y, m] = month.split('-').map(Number);
+  const dayCount = new Date(y, m, 0).getDate();
+  const spentOn = new Map<string, number>();
+  entries.filter((e) => e.kind === 'expense').forEach((e) => {
+    spentOn.set(e.date, (spentOn.get(e.date) ?? 0) + e.amount);
+  });
+  const perDay = Array.from({ length: dayCount }, (_, i) => {
+    const date = `${month}-${String(i + 1).padStart(2, '0')}`;
+    return { date, total: spentOn.get(date) ?? 0 };
+  });
+  const busiestDay = perDay.reduce<{ date: string; total: number } | null>(
+    (best, d) => (d.total > 0 && (!best || d.total > best.total) ? d : best), null);
+
+  return {
+    income,
+    expense,
+    invested,
+    net: income - expense - invested,
+    spentByCategory: groupByCategory(entries, 'expense'),
+    investedByCategory: groupByCategory(entries, 'investment'),
+    perDay,
+    busiestDay,
+    daysWithSpend: spentOn.size,
+    entries,
+  };
+}
 
 /* --------------------------------- meals --------------------------------- */
 

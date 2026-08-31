@@ -1,4 +1,4 @@
-export type WorkspaceType = 'timetable' | 'tasks' | 'stats' | 'meals';
+export type WorkspaceType = 'timetable' | 'tasks' | 'stats' | 'meals' | 'finance';
 export type Priority = 'p1' | 'p2' | 'p3' | 'p4' | null;
 export type Recurrence = 'none' | 'daily' | 'weekly';
 export type MealSlot = 'breakfast' | 'lunch' | 'snacks' | 'dinner';
@@ -70,6 +70,20 @@ export interface Settings {
 
 export type MealDay = Partial<Record<MealSlot, string>>;
 
+/** Investment is deliberately not an expense: the money moves to an asset
+ *  rather than leaving, so it is netted off separately. */
+export type MoneyKind = 'income' | 'expense' | 'investment';
+
+export interface MoneyEntry {
+  id: string;
+  date: string;
+  /** Always positive; `kind` carries the direction. */
+  amount: number;
+  kind: MoneyKind;
+  category: string;
+  note: string;
+}
+
 export interface AppState {
   version: number;
   workspaces: Workspace[];
@@ -78,5 +92,6 @@ export interface AppState {
   template: TemplateBlock[];
   labels: string[];
   meals: Record<string, MealDay>;
+  money: MoneyEntry[];
   settings: Settings;
 }

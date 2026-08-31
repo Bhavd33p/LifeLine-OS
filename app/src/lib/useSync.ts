@@ -67,6 +67,12 @@ export function useSync() {
       setStatus((s) => ({ ...s, user }));
       if (!user) { stopWatchingUserDoc(); return; }
 
+      // Ask again now that they have signed in. Browsers weigh engagement when
+      // deciding, and a refusal on a cold first visit often becomes a grant
+      // once the site is actually being used -- which is the difference between
+      // a session lasting months and being evicted in a week.
+      ensurePersistentStorage().then((storage) => setStatus((s) => ({ ...s, storage })));
+
       let first = true;
       await watchUserDoc(user.uid, (remote) => {
         const wasFirst = first;

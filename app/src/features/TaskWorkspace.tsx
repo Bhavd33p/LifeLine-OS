@@ -181,7 +181,7 @@ function TaskRow({ task: t, onEdit }: { task: Task; onEdit: () => void }) {
           ))}
           {prio && (
             <Badge className={cn('px-1.5 py-0 text-[10px]', prio.className)}
-              title={`${prio.name}: ${prio.definition}`}>
+              title={prio.definition}>
               {prio.label}
             </Badge>
           )}

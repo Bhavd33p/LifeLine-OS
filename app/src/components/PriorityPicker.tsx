@@ -23,7 +23,7 @@ export function PriorityPicker({ value, onChange }: {
           const active = value === p.id;
           return (
             <button key={p.id} type="button" aria-pressed={active}
-              title={`${p.label} — ${p.name}: ${p.definition}`}
+              title={`${p.label}: ${p.definition}`}
               onClick={() => onChange(active ? null : p.id)}
               className={cn(
                 'rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors',
@@ -48,7 +48,7 @@ export function PriorityPicker({ value, onChange }: {
                 <li key={p.id} className="flex gap-2">
                   <span className={cn('mt-1 size-2 shrink-0 rounded-full', p.dot)} aria-hidden />
                   <span className="text-xs">
-                    <b>{p.label} · {p.name}</b>
+                    <b>{p.label}</b>
                     <span className="block text-muted-foreground">{p.definition}</span>
                   </span>
                 </li>
@@ -59,7 +59,7 @@ export function PriorityPicker({ value, onChange }: {
       </div>
       {chosen && (
         <p className="text-xs text-muted-foreground">
-          <b className="text-foreground">{chosen.label} · {chosen.name}</b> — {chosen.definition}
+          <b className="text-foreground">{chosen.label}</b> — {chosen.definition}
         </p>
       )}
     </div>
