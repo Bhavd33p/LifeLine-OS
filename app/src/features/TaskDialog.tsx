@@ -18,6 +18,7 @@ import type { Recurrence, Task } from '@/lib/types';
 export function TaskDialog({ task, onClose }: { task: Task; onClose: () => void }) {
   const allLabels = useStore((s) => s.labels);
   const allTasks = useStore((s) => s.tasks);
+  const workspaces = useStore((s) => s.workspaces);
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes);
   const [labels, setLabels] = useState<string[]>(task.labels);
@@ -29,6 +30,7 @@ export function TaskDialog({ task, onClose }: { task: Task; onClose: () => void 
   const [estimate, setEstimate] = useState(task.estimateMinutes ? String(task.estimateMinutes) : '');
   const [dependsOn, setDependsOn] = useState<string[]>(task.dependsOn);
   const [depQuery, setDepQuery] = useState('');
+  const [workspaceId, setWorkspaceId] = useState(task.workspaceId);
 
   const toggle = (l: string) =>
     setLabels((p) => (p.includes(l) ? p.filter((x) => x !== l) : [...p, l]));
@@ -43,6 +45,7 @@ export function TaskDialog({ task, onClose }: { task: Task; onClose: () => void 
           const name = title.trim();
           if (!name) return;
           updateTask(task.id, {
+            workspaceId,
             title: name, notes, labels, priority,
             link: normalizeLink(link),
             dependsOn,
@@ -62,6 +65,24 @@ export function TaskDialog({ task, onClose }: { task: Task; onClose: () => void 
           <div className="space-y-2">
             <Label htmlFor="task-notes">Notes</Label>
             <Input id="task-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="task-category">Category</Label>
+            <Select value={workspaceId} onValueChange={setWorkspaceId}>
+              <SelectTrigger id="task-category" className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {workspaces.filter((w) => w.type === 'tasks').map((w) => (
+                  <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {workspaceId !== task.workspaceId && (
+              <p className="text-xs text-muted-foreground">
+                Moves out of {workspaces.find((w) => w.id === task.workspaceId)?.name ?? 'its category'}
+                {' '}when you save. Labels, priority and history come with it.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

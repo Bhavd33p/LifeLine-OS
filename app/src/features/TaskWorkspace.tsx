@@ -13,9 +13,10 @@ import { PriorityPicker } from '@/components/PriorityPicker';
 import { TaskDialog } from './TaskDialog';
 import { Contests } from './Contests';
 import {
-  PRIORITY_RANK, type PriorityId, addTask, isTaskDoneToday,
+  PRIORITY_RANK, type PriorityId, addLabel, addTask, isTaskDoneToday,
   priorityOf, streakOf, toggleTaskDone, useStore,
 } from '@/lib/store';
+import { quickAddConfig } from '@/lib/quickAdd';
 import { formatDateLabel, todayStr } from '@/lib/date';
 import type { Task, Workspace } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -105,6 +106,8 @@ function QuickAdd({ ws, labels }: { ws: Workspace; labels: string[] }) {
   const [priority, setPriority] = useState<PriorityId | null>(null);
   const [link, setLink] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [note, setNote] = useState('');
+  const config = useMemo(() => quickAddConfig(ws.id, ws.name), [ws.id, ws.name]);
   const [open, setOpen] = useState(false);
   const [justAdded, setJustAdded] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -119,40 +122,76 @@ function QuickAdd({ ws, labels }: { ws: Workspace; labels: string[] }) {
         e.preventDefault();
         const name = title.trim();
         if (!name) return;
-        addTask(ws.id, name, picked, { priority, link: link || null, dueDate: dueDate || null });
+        addTask(ws.id, name, picked, {
+          priority, link: link || null, dueDate: dueDate || null, notes: note.trim(),
+        });
         setTitle('');
-        // The link belongs to one application; the labels, priority and
+        // The link and note belong to one item; the labels, priority and
         // deadline usually carry across a run of them.
         setLink('');
+        setNote('');
         setJustAdded(name);
         // The labels and priority stay put, so a run of similar tasks goes in
         // without re-picking them each time.
         inputRef.current?.focus();
       }}>
-        <Input ref={inputRef} value={title} placeholder={`Add to ${ws.name}...`}
+        <Input ref={inputRef} value={title} placeholder={config.placeholder}
           onChange={(e) => setTitle(e.target.value)} onFocus={() => setOpen(true)} />
         <Button type="submit" size="icon" aria-label="Add task"><Plus /></Button>
       </form>
 
       {open && (
         <div className="space-y-2.5">
+          {config.chips && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                {config.chips.label}
+              </span>
+              {config.chips.options.map((c) => (
+                <Badge key={c} variant={picked.includes(c) ? 'default' : 'outline'}
+                  className="cursor-pointer select-none"
+                  onClick={() => {
+                    // Offered chips become real labels the first time one is
+                    // used, so they filter and sort like anything else.
+                    addLabel(c);
+                    toggle(c);
+                  }}>
+                  {c}
+                </Badge>
+              ))}
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-1.5">
-            {labels.map((l) => (
-              <Badge key={l} variant={picked.includes(l) ? 'default' : 'outline'}
-                className="cursor-pointer select-none" onClick={() => toggle(l)}>
-                {l}
-              </Badge>
-            ))}
+            {labels
+              .filter((l) => !config.chips?.options.includes(l))
+              .map((l) => (
+                <Badge key={l} variant={picked.includes(l) ? 'default' : 'outline'}
+                  className="cursor-pointer select-none" onClick={() => toggle(l)}>
+                  {l}
+                </Badge>
+              ))}
           </div>
 
           <PriorityPicker value={priority} onChange={setPriority} />
 
-          <div className="grid grid-cols-2 gap-2">
-            <Input value={link} onChange={(e) => setLink(e.target.value)}
-              placeholder="Link (optional)" aria-label="Link" type="url" className="h-8 text-sm" />
-            <Input value={dueDate} onChange={(e) => setDueDate(e.target.value)}
-              aria-label="Due date" type="date" className="h-8 text-sm" />
-          </div>
+          {config.note && (
+            <Input value={note} onChange={(e) => setNote(e.target.value)}
+              placeholder={config.note} aria-label="Note" className="h-8 text-sm" />
+          )}
+
+          {(config.link || config.due) && (
+            <div className={cn('grid gap-2', config.link && config.due ? 'grid-cols-2' : 'grid-cols-1')}>
+              {config.link && (
+                <Input value={link} onChange={(e) => setLink(e.target.value)}
+                  placeholder={config.link} aria-label="Link" type="url" className="h-8 text-sm" />
+              )}
+              {config.due && (
+                <Input value={dueDate} onChange={(e) => setDueDate(e.target.value)}
+                  aria-label="Due date" title={config.due} type="date" className="h-8 text-sm" />
+              )}
+            </div>
+          )}
         </div>
       )}
 

@@ -300,7 +300,7 @@ export function normalizeLink(raw: string | null): string | null {
 export function addTask(workspaceId: string, title: string, labels: string[], extra: Partial<Task> = {}) {
   update((s) => {
     s.tasks.push({
-      id: uid(), workspaceId, title, notes: '', labels, done: false,
+      id: uid(), workspaceId, title, notes: extra.notes ?? '', labels, done: false,
       priority: extra.priority ?? null,
       dueDate: extra.dueDate ?? null,
       dueTime: extra.dueTime ?? null,
