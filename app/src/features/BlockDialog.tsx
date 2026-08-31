@@ -23,6 +23,7 @@ export function BlockDialog({ date, block, onClose }: {
   const [start, setStart] = useState(block?.start ?? '09:00');
   const [end, setEnd] = useState(block?.end ?? '10:00');
   const [taskIds, setTaskIds] = useState<string[]>(block?.taskIds ?? []);
+  const [reminder, setReminder] = useState(block?.reminder ?? false);
   const [taskQuery, setTaskQuery] = useState('');
   const [error, setError] = useState('');
 
@@ -55,8 +56,8 @@ export function BlockDialog({ date, block, onClose }: {
     const name = title.trim();
     if (!name || !start || !end) return;
     if (start === end) { setError('Start and end time cannot be the same.'); return; }
-    if (block) updateBlock(block.id, { title: name, start, end, taskIds });
-    else addBlock(date, name, start, end, taskIds);
+    if (block) updateBlock(block.id, { title: name, start, end, taskIds, reminder });
+    else addBlock(date, name, start, end, taskIds, reminder);
     onClose();
   }
 
@@ -138,6 +139,18 @@ export function BlockDialog({ date, block, onClose }: {
               {' · '}{formatDuration(eMin + 1440 - sMin)}
             </p>
           )}
+          <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
+            <Checkbox checked={reminder} onCheckedChange={(v) => setReminder(v === true)}
+              className="mt-0.5" />
+            <span className="text-sm">
+              Remind me at {formatTime12(start)}
+              <span className="block text-xs text-muted-foreground">
+                A notification when this block starts. It only fires while the app is
+                open, and needs notification permission from Settings.
+              </span>
+            </span>
+          </label>
+
           {error && <p className="text-sm font-medium text-destructive">{error}</p>}
 
           <DialogFooter className="gap-2 sm:justify-between">

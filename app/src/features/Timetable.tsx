@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Pencil, Plus, Trash2, X } from 'lucide-react';
+import {
+  Bell, BellOff, Check, ChevronLeft, ChevronRight, Pencil, Plus, Trash2, X,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,7 +16,8 @@ import {
 } from '@/lib/date';
 import {
   addSubtask, deleteBlock, deleteSubtask, getState, isTaskDoneToday, loadTemplateIntoDay,
-  priorityOf, saveDayAsTemplate, setBlockStatus, toggleSubtask, toggleTaskDone, useStore,
+  priorityOf, saveDayAsTemplate, setBlockStatus, toggleBlockReminder, toggleSubtask,
+  toggleTaskDone, useStore,
 } from '@/lib/store';
 import type { Block } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -232,6 +235,15 @@ function BlockCard({ block: b, isNow, onEdit }: { block: Block; isNow: boolean; 
             aria-label={`Mark “${b.title}” missed`}
             onClick={() => setBlockStatus(b.id, 'missed')}>
             <X className="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon" aria-pressed={b.reminder}
+            className={cn('size-8', b.reminder && 'text-foreground')}
+            aria-label={b.reminder
+              ? `Turn off the reminder for “${b.title}”`
+              : `Remind me when “${b.title}” starts`}
+            title={b.reminder ? `Reminder at ${formatTime12(b.start)}` : 'No reminder'}
+            onClick={() => toggleBlockReminder(b.id)}>
+            {b.reminder ? <Bell className="size-4" /> : <BellOff className="size-4 opacity-40" />}
           </Button>
           <Button variant="ghost" size="icon" className="size-8" aria-label="Edit block" onClick={onEdit}>
             <Pencil className="size-4" />

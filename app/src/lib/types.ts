@@ -40,6 +40,8 @@ export interface Block {
   end: string;
   /** Tasks pulled into this block, from any workspace. */
   taskIds: string[];
+  /** Notify at this block's start time. Off unless asked for. */
+  reminder: boolean;
   status: BlockStatus;
   subtasks: Subtask[];
 }

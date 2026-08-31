@@ -146,6 +146,8 @@ export function migrate(raw: any): AppState {
     delete (b as any).taskId;
     // Blocks planned before day-marking existed are unmarked, not missed.
     if (b.status !== 'done' && b.status !== 'missed') b.status = null;
+    // Blocks made before per-block reminders existed stay silent.
+    if (typeof b.reminder !== 'boolean') b.reminder = false;
   });
 
   return s;
@@ -304,9 +306,17 @@ export function streakOf(t: Task) {
   return streak;
 }
 
-export const addBlock = (date: string, title: string, start: string, end: string, taskIds: string[]) =>
+export const addBlock = (
+  date: string, title: string, start: string, end: string, taskIds: string[], reminder = false,
+) =>
   update((s) => {
-    s.blocks.push({ id: uid(), date, title, start, end, taskIds, status: null, subtasks: [] });
+    s.blocks.push({ id: uid(), date, title, start, end, taskIds, reminder, status: null, subtasks: [] });
+  });
+
+export const toggleBlockReminder = (id: string) =>
+  update((s) => {
+    const b = s.blocks.find((x) => x.id === id);
+    if (b) b.reminder = !b.reminder;
   });
 
 /** Tapping the mark already set clears it, so a mis-tap is one tap to undo. */
@@ -364,7 +374,7 @@ export const saveDayAsTemplate = (dateStr: string) =>
   update((s) => {
     // A template is a plan, so it deliberately carries no done/missed marks.
     s.template = s.blocks.filter((b) => b.date === dateStr).map((b) => ({
-      id: uid(), title: b.title, start: b.start, end: b.end,
+      id: uid(), title: b.title, start: b.start, end: b.end, reminder: b.reminder,
       subtasks: b.subtasks.map((x) => ({ id: uid(), title: x.title, done: false })),
     }));
   });
@@ -375,7 +385,7 @@ export const loadTemplateIntoDay = (dateStr: string) =>
     s.template.forEach((t) => {
       s.blocks.push({
         id: uid(), date: dateStr, title: t.title, start: t.start, end: t.end, taskIds: [],
-        status: null,
+        reminder: !!t.reminder, status: null,
         subtasks: t.subtasks.map((x) => ({ id: uid(), title: x.title, done: false })),
       });
     });
