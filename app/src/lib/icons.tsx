@@ -1,6 +1,6 @@
 import {
   Calendar, CheckSquare, Heart, Code2, Sparkles, Dumbbell,
-  UtensilsCrossed, BarChart3, Folder, type LucideIcon,
+  UtensilsCrossed, BarChart3, Briefcase, Folder, type LucideIcon,
 } from 'lucide-react';
 
 /** Built-in workspaces get a real icon; custom ones fall back to a folder. */
@@ -11,6 +11,7 @@ const BY_ID: Record<string, LucideIcon> = {
   cpdsa: Code2,
   skincare: Sparkles,
   gym: Dumbbell,
+  openings: Briefcase,
   meals: UtensilsCrossed,
   stats: BarChart3,
 };

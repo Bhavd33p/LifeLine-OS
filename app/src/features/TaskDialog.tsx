@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { PriorityPicker } from '@/components/PriorityPicker';
-import { deleteTask, updateTask, useStore, type PriorityId } from '@/lib/store';
+import { deleteTask, normalizeLink, updateTask, useStore, type PriorityId } from '@/lib/store';
 import type { Recurrence, Task } from '@/lib/types';
 
 export function TaskDialog({ task, onClose }: { task: Task; onClose: () => void }) {
@@ -19,6 +19,7 @@ export function TaskDialog({ task, onClose }: { task: Task; onClose: () => void 
   const [notes, setNotes] = useState(task.notes);
   const [labels, setLabels] = useState<string[]>(task.labels);
   const [priority, setPriority] = useState<PriorityId | null>(task.priority);
+  const [link, setLink] = useState(task.link ?? '');
   const [dueDate, setDueDate] = useState(task.dueDate ?? '');
   const [dueTime, setDueTime] = useState(task.dueTime ?? '');
   const [recurrence, setRecurrence] = useState<Recurrence>(task.recurrence);
@@ -37,6 +38,7 @@ export function TaskDialog({ task, onClose }: { task: Task; onClose: () => void 
           if (!name) return;
           updateTask(task.id, {
             title: name, notes, labels, priority,
+            link: normalizeLink(link),
             dueDate: dueDate || null,
             // A time with no date has nothing to hang off, so it is dropped.
             dueTime: dueDate ? (dueTime || null) : null,
@@ -52,6 +54,17 @@ export function TaskDialog({ task, onClose }: { task: Task; onClose: () => void 
           <div className="space-y-2">
             <Label htmlFor="task-notes">Notes</Label>
             <Input id="task-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="task-link">Link</Label>
+            <Input id="task-link" type="url" value={link} placeholder="careers.example.com/apply"
+              onChange={(e) => setLink(e.target.value)} />
+            {link.trim() && !normalizeLink(link) && (
+              <p className="text-xs text-destructive">
+                That doesn't look like a web address, so it won't be saved as a link.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

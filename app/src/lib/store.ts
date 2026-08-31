@@ -16,6 +16,7 @@ export const DEFAULT_WORKSPACES: Workspace[] = [
   { id: 'cpdsa', name: 'CP / DSA', icon: '💻', system: true, type: 'tasks' },
   { id: 'skincare', name: 'Skincare', icon: '✨', system: true, type: 'tasks' },
   { id: 'gym', name: 'Gym', icon: '🏋️', system: true, type: 'tasks' },
+  { id: 'openings', name: 'Openings', icon: '💼', system: true, type: 'tasks' },
   { id: 'meals', name: 'Meals', icon: '🍳', system: true, type: 'meals' },
   { id: 'stats', name: 'Stats', icon: '📊', system: true, type: 'stats' },
 ];
@@ -108,6 +109,13 @@ export function migrate(raw: any): AppState {
   if (!s.workspaces.some((w) => w.id === 'stats')) {
     s.workspaces.push({ id: 'stats', name: 'Stats', icon: '📊', system: true, type: 'stats' });
   }
+  if (!s.workspaces.some((w) => w.id === 'openings')) {
+    // Before Meals, keeping the work-ish workspaces together.
+    const mealsIdx = s.workspaces.findIndex((w) => w.id === 'meals');
+    const statsIdx = s.workspaces.findIndex((w) => w.id === 'stats');
+    const at = mealsIdx !== -1 ? mealsIdx : statsIdx !== -1 ? statsIdx : s.workspaces.length;
+    s.workspaces.splice(at, 0, { id: 'openings', name: 'Openings', icon: '💼', system: true, type: 'tasks' });
+  }
   if (!s.workspaces.some((w) => w.id === 'meals')) {
     // Before Stats, which is always meant to be the last tab.
     const statsIdx = s.workspaces.findIndex((w) => w.id === 'stats');
@@ -131,6 +139,7 @@ export function migrate(raw: any): AppState {
     }
     if (t.dueDate === undefined) t.dueDate = null;
     if (t.dueTime === undefined) t.dueTime = null;
+    if (typeof t.link !== 'string' || !t.link) t.link = null;
     if (t.recurrence === undefined) t.recurrence = 'none';
     if (!t.completions || typeof t.completions !== 'object') t.completions = {};
     if (!Array.isArray(t.labels)) t.labels = [];
@@ -242,6 +251,23 @@ export function useStore<T>(selector: (s: AppState) => T): T {
 
 /* ------------------------------- mutations ------------------------------- */
 
+/**
+ * Accepts a pasted URL with or without a scheme, and refuses anything that is
+ * not http(s) — a stored `javascript:` string would otherwise become a live
+ * link the moment it is rendered as an anchor.
+ */
+export function normalizeLink(raw: string | null): string | null {
+  const value = (raw ?? '').trim();
+  if (!value) return null;
+  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`;
+  try {
+    const url = new URL(withScheme);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 export function addTask(workspaceId: string, title: string, labels: string[], extra: Partial<Task> = {}) {
   update((s) => {
     s.tasks.push({
@@ -249,6 +275,7 @@ export function addTask(workspaceId: string, title: string, labels: string[], ex
       priority: extra.priority ?? null,
       dueDate: extra.dueDate ?? null,
       dueTime: extra.dueTime ?? null,
+      link: normalizeLink(extra.link ?? null),
       recurrence: extra.recurrence ?? 'none',
       completions: {}, createdAt: Date.now(), completedAt: null,
     });

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Check, Flame, Plus } from 'lucide-react';
+import { Check, ExternalLink, Flame, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,7 @@ import {
   PRIORITY_RANK, type PriorityId, addTask, isTaskDoneToday,
   priorityOf, streakOf, toggleTaskDone, useStore,
 } from '@/lib/store';
-import { formatDateLabel } from '@/lib/date';
+import { formatDateLabel, todayStr } from '@/lib/date';
 import type { Task, Workspace } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -103,6 +103,8 @@ function QuickAdd({ ws, labels }: { ws: Workspace; labels: string[] }) {
   const [title, setTitle] = useState('');
   const [picked, setPicked] = useState<string[]>([]);
   const [priority, setPriority] = useState<PriorityId | null>(null);
+  const [link, setLink] = useState('');
+  const [dueDate, setDueDate] = useState('');
   const [open, setOpen] = useState(false);
   const [justAdded, setJustAdded] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -117,8 +119,11 @@ function QuickAdd({ ws, labels }: { ws: Workspace; labels: string[] }) {
         e.preventDefault();
         const name = title.trim();
         if (!name) return;
-        addTask(ws.id, name, picked, { priority });
+        addTask(ws.id, name, picked, { priority, link: link || null, dueDate: dueDate || null });
         setTitle('');
+        // The link belongs to one application; the labels, priority and
+        // deadline usually carry across a run of them.
+        setLink('');
         setJustAdded(name);
         // The labels and priority stay put, so a run of similar tasks goes in
         // without re-picking them each time.
@@ -141,6 +146,13 @@ function QuickAdd({ ws, labels }: { ws: Workspace; labels: string[] }) {
           </div>
 
           <PriorityPicker value={priority} onChange={setPriority} />
+
+          <div className="grid grid-cols-2 gap-2">
+            <Input value={link} onChange={(e) => setLink(e.target.value)}
+              placeholder="Link (optional)" aria-label="Link" type="url" className="h-8 text-sm" />
+            <Input value={dueDate} onChange={(e) => setDueDate(e.target.value)}
+              aria-label="Due date" type="date" className="h-8 text-sm" />
+          </div>
         </div>
       )}
 
@@ -174,7 +186,11 @@ function TaskRow({ task: t, onEdit }: { task: Task; onEdit: () => void }) {
             </Badge>
           )}
           {t.dueDate && (
-            <span className="text-[11px] text-muted-foreground">{formatDateLabel(t.dueDate)}</span>
+            <span className={cn('text-[11px]',
+              // A deadline already past is the thing you most need to notice.
+              t.dueDate < todayStr() && !done ? 'font-semibold text-destructive' : 'text-muted-foreground')}>
+              {formatDateLabel(t.dueDate)}
+            </span>
           )}
           {streak > 0 && (
             <span className="flex items-center gap-0.5 text-[11px] font-medium text-muted-foreground">
@@ -183,6 +199,15 @@ function TaskRow({ task: t, onEdit }: { task: Task; onEdit: () => void }) {
           )}
         </div>
       </button>
+      {t.link && (
+        <a href={t.link} target="_blank" rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Open the link for ${t.title}`}
+          title={t.link}
+          className="shrink-0 rounded p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+          <ExternalLink className="size-4" />
+        </a>
+      )}
     </Card>
   );
 }

@@ -21,6 +21,8 @@ export interface Task {
   priority: Priority;
   dueDate: string | null;
   dueTime: string | null;
+  /** Optional URL — the application form, the posting, the doc. */
+  link: string | null;
   recurrence: Recurrence;
   completions: Record<string, boolean>;
   createdAt: number;
