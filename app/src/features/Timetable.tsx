@@ -13,8 +13,8 @@ import {
   isOvernight, minutesOf, nowMinutes, todayStr,
 } from '@/lib/date';
 import {
-  addSubtask, deleteBlock, deleteSubtask, getState, loadTemplateIntoDay,
-  saveDayAsTemplate, setBlockStatus, toggleSubtask, useStore,
+  addSubtask, deleteBlock, deleteSubtask, getState, isTaskDoneToday, loadTemplateIntoDay,
+  priorityOf, saveDayAsTemplate, setBlockStatus, toggleSubtask, toggleTaskDone, useStore,
 } from '@/lib/store';
 import type { Block } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -105,6 +105,7 @@ function NowCard({ blocks, spill }: { blocks: Block[]; spill: Block[] }) {
   const current = occurrences.find((o) => now >= o.start && now < o.end);
   const next = occurrences.find((o) => o.start > now);
   const doneSubs = current?.block.subtasks.filter((s) => s.done).length ?? 0;
+  const linkedCount = current?.block.taskIds.length ?? 0;
 
   return (
     <Card className="gap-3 p-5">
@@ -122,9 +123,11 @@ function NowCard({ blocks, spill }: { blocks: Block[]; spill: Block[] }) {
             {' · '}{formatDuration(current.end - now)} left
           </div>
           <Progress value={((now - current.start) / (current.end - current.start)) * 100} />
-          {current.block.subtasks.length > 0 && (
+          {(current.block.subtasks.length > 0 || linkedCount > 0) && (
             <div className="text-sm text-muted-foreground">
-              {doneSubs}/{current.block.subtasks.length} subtasks done
+              {current.block.subtasks.length > 0 && `${doneSubs}/${current.block.subtasks.length} subtasks done`}
+              {current.block.subtasks.length > 0 && linkedCount > 0 && ' · '}
+              {linkedCount > 0 && `${linkedCount} task${linkedCount === 1 ? '' : 's'} in this block`}
             </div>
           )}
         </>
@@ -190,6 +193,12 @@ function Timeline({ blocks, isToday, onEdit }: {
 
 function BlockCard({ block: b, isNow, onEdit }: { block: Block; isNow: boolean; onEdit: () => void }) {
   const [sub, setSub] = useState('');
+  const tasks = useStore((s) => s.tasks);
+  const workspaces = useStore((s) => s.workspaces);
+  // Linked tasks are real tasks, so ticking one here completes it everywhere.
+  const linked = b.taskIds
+    .map((id) => tasks.find((t) => t.id === id))
+    .filter((t): t is NonNullable<typeof t> => !!t);
   return (
     <Card className={cn(
       'group gap-2 p-4',
@@ -233,6 +242,33 @@ function BlockCard({ block: b, isNow, onEdit }: { block: Block; isNow: boolean; 
           </Button>
         </div>
       </div>
+
+      {linked.length > 0 && (
+        <div className="space-y-1 rounded-md bg-muted/50 p-2">
+          {linked.map((t) => {
+            const done = isTaskDoneToday(t);
+            const prio = priorityOf(t.priority);
+            return (
+              <div key={t.id} className="flex items-center gap-2 text-sm">
+                <Checkbox checked={done} onCheckedChange={() => toggleTaskDone(t.id)}
+                  aria-label={t.title} />
+                <span className={cn('min-w-0 flex-1 break-words',
+                  done && 'text-muted-foreground line-through')}>
+                  {t.title}
+                </span>
+                {prio && (
+                  <Badge className={cn('shrink-0 px-1.5 py-0 text-[10px]', prio.className)}>
+                    {prio.label}
+                  </Badge>
+                )}
+                <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px]">
+                  {workspaces.find((w) => w.id === t.workspaceId)?.name ?? '—'}
+                </Badge>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {b.subtasks.length > 0 && (
         <div className="space-y-1">

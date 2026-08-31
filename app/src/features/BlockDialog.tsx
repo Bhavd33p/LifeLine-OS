@@ -2,17 +2,17 @@ import { useMemo, useState } from 'react';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { addBlock, deleteBlock, isTaskDoneToday, updateBlock, useStore } from '@/lib/store';
+import {
+  addBlock, deleteBlock, isTaskDoneToday, priorityOf, updateBlock, useStore,
+} from '@/lib/store';
 import { formatDuration, formatTime12, minutesOf } from '@/lib/date';
 import type { Block } from '@/lib/types';
-
-const NONE = '__none__';
+import { cn } from '@/lib/utils';
 
 export function BlockDialog({ date, block, onClose }: {
   date: string; block: Block | null; onClose: () => void;
@@ -22,14 +22,27 @@ export function BlockDialog({ date, block, onClose }: {
   const [title, setTitle] = useState(block?.title ?? '');
   const [start, setStart] = useState(block?.start ?? '09:00');
   const [end, setEnd] = useState(block?.end ?? '10:00');
-  const [taskId, setTaskId] = useState(block?.taskId ?? NONE);
+  const [taskIds, setTaskIds] = useState<string[]>(block?.taskIds ?? []);
+  const [taskQuery, setTaskQuery] = useState('');
   const [error, setError] = useState('');
 
-  const candidates = useMemo(() => tasks.filter((t) => {
-    if (isTaskDoneToday(t)) return false;
-    if (t.labels.some((l) => l === 'Today' || l === 'Tomorrow' || l === 'Important')) return true;
-    return t.dueDate === date;
-  }), [tasks, date]);
+  // Every open task, grouped by workspace, so a block can pull work from
+  // CP/DSA and Health at once rather than being limited to a single task.
+  const groups = useMemo(() => {
+    const q = taskQuery.trim().toLowerCase();
+    return workspaces
+      .filter((w) => w.type === 'tasks')
+      .map((w) => ({
+        workspace: w,
+        tasks: tasks.filter((t) => t.workspaceId === w.id
+          && (!isTaskDoneToday(t) || taskIds.includes(t.id))
+          && (!q || t.title.toLowerCase().includes(q))),
+      }))
+      .filter((g) => g.tasks.length > 0);
+  }, [workspaces, tasks, taskQuery, taskIds]);
+
+  const toggleTask = (id: string) =>
+    setTaskIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   const sMin = minutesOf(start);
   const eMin = minutesOf(end);
@@ -42,9 +55,8 @@ export function BlockDialog({ date, block, onClose }: {
     const name = title.trim();
     if (!name || !start || !end) return;
     if (start === end) { setError('Start and end time cannot be the same.'); return; }
-    const linked = taskId === NONE ? null : taskId;
-    if (block) updateBlock(block.id, { title: name, start, end, taskId: linked });
-    else addBlock(date, name, start, end, linked);
+    if (block) updateBlock(block.id, { title: name, start, end, taskIds });
+    else addBlock(date, name, start, end, taskIds);
     onClose();
   }
 
@@ -63,26 +75,49 @@ export function BlockDialog({ date, block, onClose }: {
               onChange={(e) => setTitle(e.target.value)} />
           </div>
 
-          {candidates.length > 0 && (
-            <div className="space-y-2">
-              <Label>Or pick a task</Label>
-              <Select value={taskId} onValueChange={(v) => {
-                setTaskId(v);
-                const t = tasks.find((x) => x.id === v);
-                if (t) setTitle(t.title);
-              }}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="— none —" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>— none —</SelectItem>
-                  {candidates.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {workspaces.find((w) => w.id === t.workspaceId)?.name}: {t.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <Label>Tasks in this block</Label>
+              <span className="text-xs text-muted-foreground">
+                {taskIds.length ? `${taskIds.length} selected` : 'optional'}
+              </span>
             </div>
-          )}
+            <Input value={taskQuery} onChange={(e) => setTaskQuery(e.target.value)}
+              placeholder="Filter tasks..." className="h-8" />
+
+            {groups.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {taskQuery ? `Nothing matches “${taskQuery}”.` : 'No open tasks to pull in yet.'}
+              </p>
+            ) : (
+              <div className="max-h-56 space-y-3 overflow-y-auto rounded-md border p-2">
+                {groups.map(({ workspace, tasks: list }) => (
+                  <div key={workspace.id} className="space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      {workspace.name}
+                    </p>
+                    {list.map((t) => {
+                      const prio = priorityOf(t.priority);
+                      const on = taskIds.includes(t.id);
+                      return (
+                        <label key={t.id}
+                          className={cn('flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm',
+                            on ? 'bg-accent' : 'hover:bg-accent/50')}>
+                          <Checkbox checked={on} onCheckedChange={() => toggleTask(t.id)} />
+                          <span className="min-w-0 flex-1 truncate">{t.title}</span>
+                          {prio && (
+                            <Badge className={cn('shrink-0 px-1.5 py-0 text-[10px]', prio.className)}>
+                              {prio.label}
+                            </Badge>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">

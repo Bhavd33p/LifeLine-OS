@@ -38,13 +38,14 @@ export interface Block {
   title: string;
   start: string;
   end: string;
-  taskId: string | null;
+  /** Tasks pulled into this block, from any workspace. */
+  taskIds: string[];
   status: BlockStatus;
   subtasks: Subtask[];
 }
 
 /** A template is a plan, so it carries no date, no link and no done/missed mark. */
-export type TemplateBlock = Omit<Block, 'date' | 'taskId' | 'status'>;
+export type TemplateBlock = Omit<Block, 'date' | 'taskIds' | 'status'>;
 
 export interface Alarm {
   id: string;

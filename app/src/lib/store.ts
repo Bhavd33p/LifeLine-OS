@@ -139,7 +139,11 @@ export function migrate(raw: any): AppState {
   });
   s.blocks.forEach((b) => {
     if (!Array.isArray(b.subtasks)) b.subtasks = [];
-    if (b.taskId === undefined) b.taskId = null;
+    // A block used to link one task; it now holds a list across workspaces.
+    const legacy = (b as any).taskId;
+    if (!Array.isArray(b.taskIds)) b.taskIds = legacy ? [legacy] : [];
+    b.taskIds = b.taskIds.filter((id) => typeof id === 'string');
+    delete (b as any).taskId;
     // Blocks planned before day-marking existed are unmarked, not missed.
     if (b.status !== 'done' && b.status !== 'missed') b.status = null;
   });
@@ -164,8 +168,21 @@ export let afterSave: (() => void) | null = null;
 export const setAfterSave = (fn: (() => void) | null) => { afterSave = fn; };
 
 function emit() {
-  // A fresh top-level reference each commit, so useSyncExternalStore sees a change.
-  state = { ...state };
+  // Mutations are made in place, so every collection needs a fresh reference
+  // here. Without it a selector returning s.blocks hands back the same array,
+  // React concludes nothing changed and skips the render -- and any useMemo
+  // keyed on that array quietly serves a stale result. Copying a few hundred
+  // references per save costs nothing next to the class of bug it removes.
+  state = {
+    ...state,
+    workspaces: [...state.workspaces],
+    tasks: [...state.tasks],
+    blocks: [...state.blocks],
+    template: [...state.template],
+    labels: [...state.labels],
+    meals: { ...state.meals },
+    settings: { ...state.settings, alarms: [...state.settings.alarms] },
+  };
   listeners.forEach((l) => l());
 }
 
@@ -242,7 +259,8 @@ export const updateTask = (id: string, patch: Partial<Task>) =>
 export const deleteTask = (id: string) =>
   update((s) => {
     s.tasks = s.tasks.filter((x) => x.id !== id);
-    s.blocks.forEach((b) => { if (b.taskId === id) b.taskId = null; });
+    // Unlink it everywhere, or blocks would render a task that no longer exists.
+    s.blocks.forEach((b) => { b.taskIds = b.taskIds.filter((x) => x !== id); });
   });
 
 export function isTaskDoneToday(t: Task) {
@@ -286,9 +304,9 @@ export function streakOf(t: Task) {
   return streak;
 }
 
-export const addBlock = (date: string, title: string, start: string, end: string, taskId: string | null) =>
+export const addBlock = (date: string, title: string, start: string, end: string, taskIds: string[]) =>
   update((s) => {
-    s.blocks.push({ id: uid(), date, title, start, end, taskId: taskId || null, status: null, subtasks: [] });
+    s.blocks.push({ id: uid(), date, title, start, end, taskIds, status: null, subtasks: [] });
   });
 
 /** Tapping the mark already set clears it, so a mis-tap is one tap to undo. */
@@ -356,7 +374,7 @@ export const loadTemplateIntoDay = (dateStr: string) =>
     s.blocks = s.blocks.filter((b) => b.date !== dateStr);
     s.template.forEach((t) => {
       s.blocks.push({
-        id: uid(), date: dateStr, title: t.title, start: t.start, end: t.end, taskId: null,
+        id: uid(), date: dateStr, title: t.title, start: t.start, end: t.end, taskIds: [],
         status: null,
         subtasks: t.subtasks.map((x) => ({ id: uid(), title: x.title, done: false })),
       });
