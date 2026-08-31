@@ -1,6 +1,6 @@
 import { useCallback, useRef, useSyncExternalStore } from 'react';
 import type { AppState, Block, BlockStatus, MealDay, MealSlot, Task, Workspace } from './types';
-import { todayStr } from './date';
+import { addDaysStr, todayStr } from './date';
 
 // Unchanged from the vanilla app on purpose: the rewrite reads the data that is
 // already on the device rather than migrating it to a new key.
@@ -284,26 +284,38 @@ export function toggleTaskDone(id: string) {
   });
 }
 
-/** Consecutive days up to today that a recurring task was completed. */
+/**
+ * Consecutive completed days ending today. A streak counts only days actually
+ * ticked, today included — so it reads 0 until today is done, rather than
+ * carrying yesterday's run forward on a day that has not been earned yet.
+ */
 export function streakOf(t: Task) {
   if (t.recurrence === 'none') return 0;
   let streak = 0;
   let cursor = todayStr();
-  // Today not being done yet shouldn't zero a streak mid-morning.
-  if (!t.completions[cursor]) {
-    const [y, m, d] = cursor.split('-').map(Number);
-    const dt = new Date(y, m - 1, d);
-    dt.setDate(dt.getDate() - 1);
-    cursor = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-  }
   while (t.completions[cursor]) {
     streak += 1;
-    const [y, m, d] = cursor.split('-').map(Number);
-    const dt = new Date(y, m - 1, d);
-    dt.setDate(dt.getDate() - 1);
-    cursor = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    cursor = addDaysStr(cursor, -1);
   }
   return streak;
+}
+
+/**
+ * The longest run of consecutive completed days in the whole history. Shown
+ * next to the current streak so a day not yet ticked reads as "0 today" rather
+ * than erasing everything that came before it.
+ */
+export function bestStreakOf(t: Task) {
+  const days = Object.keys(t.completions).filter((d) => t.completions[d]).sort();
+  let best = 0;
+  let run = 0;
+  let prev: string | null = null;
+  days.forEach((d) => {
+    run = prev && addDaysStr(prev, 1) === d ? run + 1 : 1;
+    prev = d;
+    if (run > best) best = run;
+  });
+  return best;
 }
 
 export const addBlock = (

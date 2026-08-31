@@ -1,9 +1,8 @@
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/EmptyState';
 import { StreakCalendar } from '@/components/StreakCalendar';
-import { isTaskDoneToday, reportFor, streakOf, useStore } from '@/lib/store';
+import { bestStreakOf, isTaskDoneToday, reportFor, streakOf, useStore } from '@/lib/store';
 import { addDaysStr, formatDateLabel, todayStr } from '@/lib/date';
 import { cn } from '@/lib/utils';
 
@@ -17,10 +16,6 @@ export function Stats() {
       || last7.some((d) => t.completions[d]),
   ).length;
   const plannedDays = last7.filter((d) => state.blocks.some((b) => b.date === d)).length;
-  const streaks = state.tasks
-    .filter((t) => t.recurrence !== 'none' && streakOf(t) > 0)
-    .sort((a, b) => streakOf(b) - streakOf(a));
-
   const taskWorkspaces = state.workspaces.filter((w) => w.type === 'tasks');
 
   // Oldest first, so the report reads left to right like a week does.
@@ -58,20 +53,6 @@ export function Stats() {
             </div>
           );
         })}
-      </Card>
-
-      <Card className="gap-3 p-4">
-        <h2 className="text-sm font-semibold">Streaks</h2>
-        {streaks.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No active streaks. Give a task a daily or weekly repeat to start one.
-          </p>
-        ) : streaks.map((t) => (
-          <div key={t.id} className="flex items-center justify-between gap-2 text-sm">
-            <span className="min-w-0 truncate">{t.title}</span>
-            <Badge variant="secondary" className="tabular-nums">{streakOf(t)} days</Badge>
-          </div>
-        ))}
       </Card>
 
       <Card className="gap-3 p-4">
@@ -116,7 +97,8 @@ export function Stats() {
         {habits.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No repeating tasks yet. Open a task and set it to repeat daily — Gym or CP/DSA,
-            say — and its calendar shows up here.
+            say — and its calendar shows up here. A streak counts days you actually
+            ticked, today included, so it starts at 0 each morning.
           </p>
         ) : habits.map((t) => (
           <div key={t.id} className="space-y-1.5">
@@ -124,8 +106,8 @@ export function Stats() {
               <span className="min-w-0 truncate text-sm font-medium">{t.title}</span>
               <span className="shrink-0 text-xs text-muted-foreground">
                 <b className="text-foreground tabular-nums">{streakOf(t)}</b> day streak
-                {' · '}
-                <span className="tabular-nums">{Object.keys(t.completions).length}</span> total
+                {' · best '}<span className="tabular-nums">{bestStreakOf(t)}</span>
+                {' · '}<span className="tabular-nums">{Object.keys(t.completions).length}</span> total
               </span>
             </div>
             <StreakCalendar completions={t.completions} />
