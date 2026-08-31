@@ -23,6 +23,10 @@ export interface Task {
   dueTime: string | null;
   /** Optional URL — the application form, the posting, the doc. */
   link: string | null;
+  /** Ids of tasks that must be finished before this one starts. */
+  dependsOn: string[];
+  /** How long it is expected to take, in minutes. */
+  estimateMinutes: number | null;
   recurrence: Recurrence;
   completions: Record<string, boolean>;
   createdAt: number;

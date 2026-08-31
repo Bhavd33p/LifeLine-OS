@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
-  Bell, BellOff, Check, ChevronLeft, ChevronRight, Pencil, Plus, Trash2, X,
+  Bell, BellOff, Check, ChevronLeft, ChevronRight, ExternalLink, Pencil, Plus,
+  Trash2, Workflow, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -9,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { BlockDialog } from './BlockDialog';
+import { BuildDayDialog } from './BuildDayDialog';
 import { EmptyState } from '@/components/EmptyState';
 import {
   addDaysStr, endMinutesOf, formatDateLabel, formatDuration, formatTime12,
@@ -26,6 +28,7 @@ import { toast } from 'sonner';
 export function Timetable({ date, setDate }: { date: string; setDate: (d: string) => void }) {
   const blocks = useStore((s) => s.blocks);
   const [editing, setEditing] = useState<Block | null | undefined>(undefined);
+  const [building, setBuilding] = useState(false);
 
   const dayBlocks = useMemo(
     () => blocks.filter((b) => b.date === date).sort((a, b) => a.start.localeCompare(b.start)),
@@ -61,6 +64,8 @@ export function Timetable({ date, setDate }: { date: string; setDate: (d: string
         <NowCard blocks={dayBlocks} spill={spill} />
       )}
 
+      <DueToday date={date} />
+
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={() => {
           if (!getState().template.length) { toast.error('No saved template yet.'); return; }
@@ -73,6 +78,9 @@ export function Timetable({ date, setDate }: { date: string; setDate: (d: string
           saveDayAsTemplate(date);
           toast.success('Saved as your daily template.');
         }}>Save as template</Button>
+        <Button variant="outline" size="sm" onClick={() => setBuilding(true)}>
+          <Workflow /> Build my day
+        </Button>
         <Button size="sm" className="ml-auto" onClick={() => setEditing(null)}>
           <Plus /> Add block
         </Button>
@@ -90,6 +98,7 @@ export function Timetable({ date, setDate }: { date: string; setDate: (d: string
       {editing !== undefined && (
         <BlockDialog date={date} block={editing} onClose={() => setEditing(undefined)} />
       )}
+      {building && <BuildDayDialog date={date} onClose={() => setBuilding(false)} />}
     </div>
   );
 }
@@ -313,6 +322,73 @@ function BlockCard({ block: b, isNow, onEdit }: { block: Block; isNow: boolean; 
           <Plus className="size-4" />
         </Button>
       </form>
+    </Card>
+  );
+}
+
+/**
+ * Anything due on the day being viewed, gathered from every workspace. A
+ * deadline is easy to miss when it only appears inside whichever workspace the
+ * task happens to live in, and the timetable is the screen actually opened.
+ */
+function DueToday({ date }: { date: string }) {
+  const tasks = useStore((s) => s.tasks);
+  const workspaces = useStore((s) => s.workspaces);
+
+  const due = useMemo(
+    () => tasks.filter((t) => t.dueDate === date && !isTaskDoneToday(t)),
+    [tasks, date],
+  );
+  const overdue = useMemo(
+    () => (date === todayStr()
+      ? tasks.filter((t) => t.dueDate && t.dueDate < date && !isTaskDoneToday(t))
+      : []),
+    [tasks, date],
+  );
+
+  if (due.length === 0 && overdue.length === 0) return null;
+
+  const row = (t: (typeof tasks)[number], late: boolean) => {
+    const prio = priorityOf(t.priority);
+    return (
+      <div key={t.id} className="flex items-center gap-2.5 text-sm">
+        <Checkbox checked={false} onCheckedChange={() => toggleTaskDone(t.id)}
+          aria-label={`Mark ${t.title} done`} />
+        <span className="min-w-0 flex-1 truncate">{t.title}</span>
+        {late && (
+          <Badge variant="outline" className="shrink-0 border-destructive/50 px-1.5 py-0 text-[10px] text-destructive">
+            {formatDateLabel(t.dueDate!)}
+          </Badge>
+        )}
+        {prio && (
+          <Badge className={cn('shrink-0 px-1.5 py-0 text-[10px]', prio.className)}>{prio.label}</Badge>
+        )}
+        <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px]">
+          {workspaces.find((w) => w.id === t.workspaceId)?.name ?? '—'}
+        </Badge>
+        {t.link && (
+          <a href={t.link} target="_blank" rel="noopener noreferrer"
+            aria-label={`Open the link for ${t.title}`}
+            className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground">
+            <ExternalLink className="size-3.5" />
+          </a>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <Card className="gap-2 p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-sm font-semibold">
+          Due {date === todayStr() ? 'today' : formatDateLabel(date)}
+        </h2>
+        <span className="text-xs text-muted-foreground">
+          {due.length + overdue.length} open
+        </span>
+      </div>
+      {overdue.map((t) => row(t, true))}
+      {due.map((t) => row(t, false))}
     </Card>
   );
 }

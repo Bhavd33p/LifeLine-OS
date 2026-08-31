@@ -9,12 +9,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 import { PriorityPicker } from '@/components/PriorityPicker';
 import { deleteTask, normalizeLink, updateTask, useStore, type PriorityId } from '@/lib/store';
 import type { Recurrence, Task } from '@/lib/types';
 
 export function TaskDialog({ task, onClose }: { task: Task; onClose: () => void }) {
   const allLabels = useStore((s) => s.labels);
+  const allTasks = useStore((s) => s.tasks);
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes);
   const [labels, setLabels] = useState<string[]>(task.labels);
@@ -23,6 +26,9 @@ export function TaskDialog({ task, onClose }: { task: Task; onClose: () => void 
   const [dueDate, setDueDate] = useState(task.dueDate ?? '');
   const [dueTime, setDueTime] = useState(task.dueTime ?? '');
   const [recurrence, setRecurrence] = useState<Recurrence>(task.recurrence);
+  const [estimate, setEstimate] = useState(task.estimateMinutes ? String(task.estimateMinutes) : '');
+  const [dependsOn, setDependsOn] = useState<string[]>(task.dependsOn);
+  const [depQuery, setDepQuery] = useState('');
 
   const toggle = (l: string) =>
     setLabels((p) => (p.includes(l) ? p.filter((x) => x !== l) : [...p, l]));
@@ -39,6 +45,8 @@ export function TaskDialog({ task, onClose }: { task: Task; onClose: () => void 
           updateTask(task.id, {
             title: name, notes, labels, priority,
             link: normalizeLink(link),
+            dependsOn,
+            estimateMinutes: Number(estimate) > 0 ? Number(estimate) : null,
             dueDate: dueDate || null,
             // A time with no date has nothing to hang off, so it is dropped.
             dueTime: dueDate ? (dueTime || null) : null,
@@ -107,6 +115,55 @@ export function TaskDialog({ task, onClose }: { task: Task; onClose: () => void 
                 A repeating task is ticked off per day and builds a streak.
               </p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="task-estimate">Estimate (minutes)</Label>
+            <Input id="task-estimate" type="number" min={5} step={5} value={estimate}
+              placeholder="30" className="w-32"
+              onChange={(e) => setEstimate(e.target.value)} />
+            <p className="text-xs text-muted-foreground">
+              How long it takes. Used when building a day from dependencies.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <Label>Depends on</Label>
+              <span className="text-xs text-muted-foreground">
+                {dependsOn.length ? `${dependsOn.length} selected` : 'optional'}
+              </span>
+            </div>
+            <Input value={depQuery} onChange={(e) => setDepQuery(e.target.value)}
+              placeholder="Filter tasks..." className="h-9" />
+            {/* Self is excluded; a task depending on itself can never start. */}
+            {(() => {
+              const q = depQuery.trim().toLowerCase();
+              const options = allTasks.filter((o) => o.id !== task.id
+                && (!q || o.title.toLowerCase().includes(q)));
+              if (options.length === 0) {
+                return <p className="py-1 text-sm text-muted-foreground">No other tasks.</p>;
+              }
+              return (
+                <div className="max-h-36 overflow-y-auto rounded-md border">
+                  {options.map((o) => {
+                    const on = dependsOn.includes(o.id);
+                    return (
+                      <label key={o.id}
+                        className={cn('flex cursor-pointer items-center gap-2.5 px-2.5 py-2 text-sm',
+                          on ? 'bg-accent' : 'hover:bg-accent/50')}>
+                        <Checkbox checked={on} onCheckedChange={() => setDependsOn((p) =>
+                          p.includes(o.id) ? p.filter((x) => x !== o.id) : [...p, o.id])} />
+                        <span className="min-w-0 flex-1 truncate">{o.title}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+            <p className="text-xs text-muted-foreground">
+              These must be finished first. A loop is reported when you build a day.
+            </p>
           </div>
 
           <DialogFooter className="gap-2 sm:justify-between">

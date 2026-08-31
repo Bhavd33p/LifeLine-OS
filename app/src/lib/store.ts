@@ -57,6 +57,9 @@ export const PRIORITY_RANK: Record<string, number> = { p1: 0, p2: 1, p3: 2, p4: 
 // the most urgent thing on the list. P4 is a new tier below what existed.
 const LEGACY_PRIORITY: Record<string, PriorityId> = { high: 'p1', medium: 'p2', low: 'p3' };
 
+/** Used when a task has no estimate of its own, so the builder still places it. */
+export const DEFAULT_ESTIMATE_MINUTES = 30;
+
 export const MEAL_SLOTS: [MealSlot, string][] = [
   ['breakfast', 'Breakfast'],
   ['lunch', 'Lunch'],
@@ -140,6 +143,9 @@ export function migrate(raw: any): AppState {
     if (t.dueDate === undefined) t.dueDate = null;
     if (t.dueTime === undefined) t.dueTime = null;
     if (typeof t.link !== 'string' || !t.link) t.link = null;
+    if (!Array.isArray(t.dependsOn)) t.dependsOn = [];
+    t.dependsOn = t.dependsOn.filter((d) => typeof d === 'string' && d !== t.id);
+    if (typeof t.estimateMinutes !== 'number' || !(t.estimateMinutes > 0)) t.estimateMinutes = null;
     if (t.recurrence === undefined) t.recurrence = 'none';
     if (!t.completions || typeof t.completions !== 'object') t.completions = {};
     if (!Array.isArray(t.labels)) t.labels = [];
@@ -276,6 +282,8 @@ export function addTask(workspaceId: string, title: string, labels: string[], ex
       dueDate: extra.dueDate ?? null,
       dueTime: extra.dueTime ?? null,
       link: normalizeLink(extra.link ?? null),
+      dependsOn: extra.dependsOn ?? [],
+      estimateMinutes: extra.estimateMinutes ?? null,
       recurrence: extra.recurrence ?? 'none',
       completions: {}, createdAt: Date.now(), completedAt: null,
     });
@@ -288,8 +296,10 @@ export const updateTask = (id: string, patch: Partial<Task>) =>
 export const deleteTask = (id: string) =>
   update((s) => {
     s.tasks = s.tasks.filter((x) => x.id !== id);
-    // Unlink it everywhere, or blocks would render a task that no longer exists.
+    // Unlink it everywhere, or blocks would render a task that no longer
+    // exists and other tasks would wait forever on a missing prerequisite.
     s.blocks.forEach((b) => { b.taskIds = b.taskIds.filter((x) => x !== id); });
+    s.tasks.forEach((t) => { t.dependsOn = t.dependsOn.filter((x) => x !== id); });
   });
 
 export function isTaskDoneToday(t: Task) {
