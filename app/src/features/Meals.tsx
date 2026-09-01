@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { ChevronLeft, ChevronRight, CopyPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import {
   MEAL_SLOTS, copyPreviousWeekMeals, dishSuggestions, setMeal, useStore,
 } from '@/lib/store';
 import { addDaysStr, formatDateLabel, formatDayShort, todayStr } from '@/lib/date';
 import { cn } from '@/lib/utils';
+import { MealInput } from '@/components/MealInput';
 
 /** Rolling seven days from `start` — "the coming week" begins today, not Monday. */
 export function Meals({ start, setStart }: { start: string; setStart: (d: string) => void }) {
@@ -88,33 +88,3 @@ export function Meals({ start, setStart }: { start: string; setStart: (d: string
   );
 }
 
-/**
- * Holds a local draft so typing stays snappy and storage is only written on
- * blur, but adopts the stored value whenever it changes underneath — which is
- * what "Copy last week" and an incoming cloud sync both do. An uncontrolled
- * input with defaultValue would keep showing the old text in those cases.
- */
-function MealInput({ value, label, onCommit }: {
-  value: string; label: string; onCommit: (v: string) => void;
-}) {
-  const [draft, setDraft] = useState(value);
-  const focused = useRef(false);
-
-  useEffect(() => {
-    // Never yank text out from under someone mid-edit.
-    if (!focused.current) setDraft(value);
-  }, [value]);
-
-  return (
-    <Input
-      value={draft}
-      list="dish-suggestions"
-      placeholder="Not planned"
-      aria-label={label}
-      onChange={(e) => setDraft(e.target.value)}
-      onFocus={() => { focused.current = true; }}
-      onBlur={() => { focused.current = false; onCommit(draft); }}
-      className="h-8 border-0 border-b border-transparent px-1 shadow-none focus-visible:border-ring focus-visible:ring-0"
-    />
-  );
-}

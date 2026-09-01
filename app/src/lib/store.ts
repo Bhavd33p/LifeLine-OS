@@ -18,6 +18,7 @@ export const DEFAULT_WORKSPACES: Workspace[] = [
   { id: 'cpdsa', name: 'CP / DSA', icon: '💻', system: true, type: 'tasks' },
   { id: 'skincare', name: 'Skincare', icon: '✨', system: true, type: 'tasks' },
   { id: 'gym', name: 'Gym', icon: '🏋️', system: true, type: 'tasks' },
+  { id: 'adhoc', name: 'Adhoc', icon: '⚡', system: true, type: 'tasks' },
   { id: 'content', name: 'Content', icon: '📣', system: true, type: 'tasks' },
   { id: 'openings', name: 'Openings', icon: '💼', system: true, type: 'tasks' },
   { id: 'finance', name: 'Finance', icon: '💰', system: true, type: 'finance' },
@@ -123,6 +124,13 @@ export function migrate(raw: any): AppState {
 
   if (!s.workspaces.some((w) => w.id === 'stats')) {
     s.workspaces.push({ id: 'stats', name: 'Stats', icon: '📊', system: true, type: 'stats' });
+  }
+  if (!s.workspaces.some((w) => w.id === 'adhoc')) {
+    // Right after Tasks, since that is where an unplanned thing would
+    // otherwise have been dropped.
+    const tasksIdx = s.workspaces.findIndex((w) => w.id === 'tasks');
+    const at = tasksIdx === -1 ? s.workspaces.length : tasksIdx + 1;
+    s.workspaces.splice(at, 0, { id: 'adhoc', name: 'Adhoc', icon: '⚡', system: true, type: 'tasks' });
   }
   if (!s.workspaces.some((w) => w.id === 'content')) {
     const openingsIdx = s.workspaces.findIndex((w) => w.id === 'openings');

@@ -57,6 +57,12 @@ const DEFAULTS: Record<string, QuickAddConfig> = {
     chips: { label: 'When', options: ['Morning', 'Afternoon', 'Night'] },
     note: 'Product or note',
   },
+  adhoc: {
+    placeholder: 'Something that just came up...',
+    chips: { label: 'Kind', options: ['Errand', 'Admin', 'Call', 'Follow-up', 'Quick fix'] },
+    note: 'Any detail worth keeping',
+    due: 'Do by',
+  },
   tasks: {
     placeholder: 'What needs doing...',
     note: 'Any detail worth keeping',

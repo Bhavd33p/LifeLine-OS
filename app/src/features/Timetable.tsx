@@ -17,10 +17,11 @@ import {
   isOvernight, minutesOf, nowMinutes, todayStr,
 } from '@/lib/date';
 import {
-  addSubtask, deleteBlock, deleteSubtask, getState, isTaskDoneToday, loadTemplateIntoDay,
-  priorityOf, saveDayAsTemplate, setBlockStatus, toggleBlockReminder, toggleSubtask,
-  toggleTaskDone, useStore,
+  MEAL_SLOTS, addSubtask, deleteBlock, deleteSubtask, dishSuggestions, getState,
+  isTaskDoneToday, loadTemplateIntoDay, priorityOf, saveDayAsTemplate, setBlockStatus,
+  setMeal, toggleBlockReminder, toggleSubtask, toggleTaskDone, useStore,
 } from '@/lib/store';
+import { MealInput } from '@/components/MealInput';
 import type { Block } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -65,6 +66,7 @@ export function Timetable({ date, setDate }: { date: string; setDate: (d: string
       )}
 
       <DueToday date={date} />
+      <EatingToday date={date} />
 
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={() => {
@@ -389,6 +391,49 @@ function DueToday({ date }: { date: string }) {
       </div>
       {overdue.map((t) => row(t, true))}
       {due.map((t) => row(t, false))}
+    </Card>
+  );
+}
+
+/**
+ * The day's meals, on the screen actually opened each morning. Editable in
+ * place rather than a read-only summary, so filling in a blank slot does not
+ * mean going to another tab and coming back.
+ */
+function EatingToday({ date }: { date: string }) {
+  const meals = useStore((s) => s.meals);
+  const suggestions = useMemo(() => dishSuggestions(meals), [meals]);
+  const day = meals[date];
+  const plannedCount = MEAL_SLOTS.filter(([slot]) => day?.[slot]).length;
+
+  return (
+    <Card className="gap-2 p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-sm font-semibold">
+          Eating {date === todayStr() ? 'today' : formatDateLabel(date).toLowerCase()}
+        </h2>
+        <span className="text-xs text-muted-foreground">
+          {plannedCount ? `${plannedCount} of ${MEAL_SLOTS.length} planned` : 'nothing planned'}
+        </span>
+      </div>
+
+      {/* Shares the id the Meals screen uses; only one is mounted at a time. */}
+      <datalist id="dish-suggestions">
+        {suggestions.map((d) => <option key={d} value={d} />)}
+      </datalist>
+
+      {MEAL_SLOTS.map(([slot, label]) => (
+        <label key={slot} className="flex items-center gap-3">
+          <span className="w-16 shrink-0 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            {label}
+          </span>
+          <MealInput
+            value={day?.[slot] ?? ''}
+            label={`${label} on ${date}`}
+            onCommit={(v) => setMeal(date, slot, v)}
+          />
+        </label>
+      ))}
     </Card>
   );
 }
